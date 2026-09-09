@@ -1,5 +1,7 @@
 # Camellia Player
 
+![App Screenshot](s1.png)
+
 A simple, modern Flutter **video player** for **Windows desktop** (and Web).
 Pick a local video file, optionally attach an SRT/VTT subtitle file, and play.
 
@@ -43,6 +45,8 @@ flutter run -d chrome
 
 ```bash
 flutter build windows --release
+build\windows\x64\runner\Release
+cp -r build/windows/x64/runner/Release/* /d/Working/CamelliaPlayerRelease
 ```
 
 The output will be in `build/windows/runner/Release/`.

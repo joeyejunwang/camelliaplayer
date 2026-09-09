@@ -386,7 +386,11 @@ class _LyricsPanel extends StatelessWidget {
                 ),
                 const Spacer(),
                 Text(
-                  '${subtitles.length} lines',
+                  subtitles.isEmpty
+                      ? ''
+                      : currentIndex == null || currentIndex == -1
+                          ? ''
+                          : '${currentIndex! + 1} / ${subtitles.length} lines',
                   style: theme.textTheme.bodySmall?.copyWith(
                     color: theme.colorScheme.onSurfaceVariant,
                   ),
