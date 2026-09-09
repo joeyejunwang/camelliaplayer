@@ -5,6 +5,10 @@ on:
     tags:
       - '**'
 
+# Grant permission to create releases and modify repository contents
+permissions:
+  contents: write
+
 jobs:
   build-windows:
     name: Build Windows (release)
