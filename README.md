@@ -7,7 +7,9 @@ Pick a local MP3 or video file and play. Matching subtitle files in the same fol
 
 ## Features
 
-- Pick local audio (mp3) or video files (mp4, mkv, webm, mov, …)
+- Pick local audio (mp3, wav) or video files (mp4, mkv, webm, mov, …)
+- **Drag & drop** an `.mp4` / `.wav` / `.mp3` file anywhere on the home window to start playing
+- **"Last played" card** remembers the most recent media file; one click replays it (persisted to `last_played.json` next to the executable)
 - MP3 playback displays a music icon and filename, with the same playback and lyric controls as video
 - Optional subtitle file (SRT, VTT, ASS/SSA) — toggleable overlay
 - Native-feeling player UI powered by [`chewie`](https://pub.dev/packages/chewie) + [`video_player`](https://pub.dev/packages/video_player)
@@ -66,12 +68,10 @@ A GitHub Actions workflow builds the Windows release on every push:
 ```
 lib/
   main.dart                 # App entry + theme
-  home/
-    home_screen.dart        # File-picker landing page
-  player/
-    player_screen.dart      # Chewie-powered player + subtitle overlay
-  subtitles/
-    subtitle_loader.dart    # SRT parser (also handles VTT/ASS via the `subtitle` package)
+  home_screen.dart          # File-picker landing page + drag-drop + last-played card
+  player_screen.dart        # Chewie-powered player + subtitle overlay
+  subtitle_loader.dart      # SRT parser (also handles VTT/ASS via the `subtitle` package)
+  last_played.dart          # JSON-backed "last played" record
 windows/
   runner/main.cpp           # Window title + default size
 ```
