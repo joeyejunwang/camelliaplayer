@@ -17,11 +17,11 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Future<void> _pickVideo() async {
     const typeGroup = XTypeGroup(
-      label: 'video',
-      extensions: ['mp4', 'm4v', 'mkv', 'webm', 'mov', 'avi', 'wmv'],
+      label: 'Audio and video',
+      extensions: ['mp3', 'wav', 'mp4', 'm4v', 'mkv', 'webm', 'mov', 'avi', 'wmv'],
     );
     final XFile? file = await openFile(acceptedTypeGroups: [typeGroup]);
-    if (file == null) return;
+    if (file == null || !mounted) return;
 
     final videoFile = File(file.path);
     final baseName = videoFile.path.replaceAll(RegExp(r'\.[^.]+$'), '');
@@ -99,7 +99,7 @@ class _HomeScreenState extends State<HomeScreen> {
                             ),
                             const SizedBox(height: 4),
                             Text(
-                              'A simple Flutter video player for Windows & Web.',
+                              'A simple Flutter audio and video player for Windows & Web.',
                               style: theme.textTheme.bodyMedium?.copyWith(
                                 color: theme.colorScheme.onSurfaceVariant,
                               ),
@@ -111,10 +111,10 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                   const SizedBox(height: 32),
                   _PickerCard(
-                    title: 'Video file',
-                    subtitle: _videoPath ?? 'Pick an .mp4, .mkv, .webm, …',
-                    icon: Icons.movie_outlined,
-                    actionLabel: 'Choose video',
+                    title: 'Audio or video file',
+                    subtitle: _videoPath ?? 'Pick an .mp3, .mp4, .mkv, .webm, …',
+                    icon: Icons.perm_media_outlined,
+                    actionLabel: 'Choose file',
                     onTap: _pickVideo,
                   ),
                   const SizedBox(height: 24),

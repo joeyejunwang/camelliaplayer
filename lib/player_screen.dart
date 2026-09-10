@@ -40,6 +40,12 @@ class _PlayerScreenState extends State<PlayerScreen> {
   final ScrollController _lyricsScrollController = ScrollController();
   int? _lastScrolledIndex;
 
+  bool get _isMp3 => p.extension(
+        widget.videoFile?.path ?? widget.videoPath ?? widget.videoName,
+      ).toLowerCase() == '.mp3' || p.extension(
+        widget.videoFile?.path ?? widget.videoPath ?? widget.videoName,
+      ).toLowerCase() == '.wav';
+
   @override
   void initState() {
     super.initState();
@@ -250,7 +256,27 @@ class _PlayerScreenState extends State<PlayerScreen> {
                           // Video
                           Positioned.fill(
                             child: Center(
-                              child: Video(
+                              child: _isMp3
+                                  ? Padding(
+                                      padding: const EdgeInsets.all(32),
+                                      child: Column(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          const Icon(Icons.music_note_rounded,
+                                              size: 80, color: Colors.white70),
+                                          const SizedBox(height: 16),
+                                          Text(
+                                            widget.videoName,
+                                            textAlign: TextAlign.center,
+                                            maxLines: 2,
+                                            overflow: TextOverflow.ellipsis,
+                                            style: const TextStyle(
+                                                color: Colors.white, fontSize: 20),
+                                          ),
+                                        ],
+                                      ),
+                                    )
+                                  : Video(
                                 controller: _videoController,
                                 controls: NoVideoControls,
                               ),

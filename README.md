@@ -2,12 +2,13 @@
 
 ![App Screenshot](s1.png)
 
-A simple, modern Flutter **video player** for **Windows desktop** (and Web).
-Pick a local video file, optionally attach an SRT/VTT subtitle file, and play.
+A simple, modern Flutter **audio and video player** for **Windows desktop** (and Web).
+Pick a local MP3 or video file and play. Matching subtitle files in the same folder are loaded automatically.
 
 ## Features
 
-- Pick any local video file (mp4, mkv, webm, mov, …)
+- Pick local audio (mp3) or video files (mp4, mkv, webm, mov, …)
+- MP3 playback displays a music icon and filename, with the same playback and lyric controls as video
 - Optional subtitle file (SRT, VTT, ASS/SSA) — toggleable overlay
 - Native-feeling player UI powered by [`chewie`](https://pub.dev/packages/chewie) + [`video_player`](https://pub.dev/packages/video_player)
 - Material 3 light/dark theme

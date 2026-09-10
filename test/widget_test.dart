@@ -9,8 +9,8 @@ void main() {
     await tester.pump();
 
     expect(find.text('Camellia Player'), findsOneWidget);
-    expect(find.text('Video file'), findsOneWidget);
-    expect(find.text('Subtitle file (optional)'), findsOneWidget);
-    expect(find.text('Open player'), findsOneWidget);
+    expect(find.text('Audio or video file'), findsOneWidget);
+    expect(find.text('Pick an .mp3, .wav, .mp4, .mkv, .webm, …'), findsOneWidget);
+    expect(find.text('Choose file'), findsOneWidget);
   });
 }
