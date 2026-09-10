@@ -344,6 +344,84 @@ class _MiniBtn extends StatelessWidget {
   }
 }
 
+class _LyricRulerPainter extends CustomPainter {
+  _LyricRulerPainter({
+    required this.totalCount,
+    required this.currentIndex,
+    required this.theme,
+  });
+
+  final int totalCount;
+  final int currentIndex;
+  final ThemeData theme;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (totalCount == 0) return;
+
+    final paint = Paint()
+      ..strokeWidth = 1.5
+      ..strokeCap = StrokeCap.round;
+
+    final activePaint = Paint()
+      ..color = theme.colorScheme.primary
+      ..strokeWidth = 2;
+
+    final inactivePaint = Paint()
+      ..color = theme.colorScheme.outline;
+
+    final tickCount = totalCount > 50 ? 10 : (totalCount > 20 ? 5 : 1);
+    final step = totalCount > tickCount ? (totalCount / tickCount).floor() : 1;
+
+    // Draw one tick per lyric line (i = 0 .. totalCount-1), so label "500"
+    // sits exactly above subtitles[499].
+    for (int i = 0; i < totalCount; i++) {
+      final x = 12 + (i / (totalCount - 1).clamp(1, totalCount)) * (size.width - 24);
+      final isActive = i <= currentIndex;
+      final isMajor = (i % step == 0) || (i == totalCount - 1);
+
+      paint.color = isActive ? theme.colorScheme.primary : theme.colorScheme.outlineVariant;
+      paint.strokeWidth = isActive ? 2 : (isMajor ? 1.5 : 1);
+
+      final tickHeight = 8.0;
+      canvas.drawLine(
+        Offset(x, size.height - tickHeight),
+        Offset(x, size.height),
+        paint,
+      );
+
+      if (isMajor) {
+        final textPainter = TextPainter(
+          text: TextSpan(
+            text: '${i + 1}',
+            style: TextStyle(
+              fontSize: 8,
+              color: isActive ? theme.colorScheme.primary : theme.colorScheme.outline,
+            ),
+          ),
+          textDirection: TextDirection.ltr,
+        );
+        textPainter.layout();
+        textPainter.paint(canvas, Offset(x - textPainter.width / 2, 2));
+      }
+    }
+
+    if (currentIndex >= 0) {
+      final progressX = 12 + (currentIndex / (totalCount - 1).clamp(1, totalCount)) * (size.width - 24);
+      // Draw a thick progress line that fills the ticks up to the current lyric.
+      canvas.drawLine(
+        Offset(12, size.height - 4),
+        Offset(progressX, size.height - 4),
+        activePaint..strokeWidth = 6,
+      );
+    }
+  }
+
+  @override
+  bool shouldRepaint(_LyricRulerPainter old) =>
+      old.currentIndex != currentIndex || old.totalCount != totalCount;
+}
+
 /// Bottom mini-player bar replacing the NavigationBar.
 class MiniPlayerBar extends StatelessWidget {
   const MiniPlayerBar({super.key});
@@ -435,25 +513,25 @@ class MiniPlayerBar extends StatelessWidget {
                       _MiniBtn(
                         icon: Icons.skip_previous_rounded,
                         onPressed: () => pm.playFirstLyric(),
-                        tooltip: 'First lyric',
+                        tooltip: 'First lyric ←',
                       ),
                       const SizedBox(width: 4),
                       _MiniBtn(
                         icon: Icons.fast_rewind_rounded,
                         onPressed: () => pm.playPreviousLyric(),
-                        tooltip: 'Previous lyric',
+                        tooltip: 'Previous lyric ←',
                       ),
                       const SizedBox(width: 4),
                       _MiniBtn(
                         icon: Icons.fast_forward_rounded,
                         onPressed: () => pm.playNextLyric(),
-                        tooltip: 'Next lyric',
+                        tooltip: 'Next lyric →',
                       ),
                       const SizedBox(width: 4),
                       _MiniBtn(
                         icon: Icons.skip_next_rounded,
                         onPressed: () => pm.playLastLyric(),
-                        tooltip: 'Last lyric',
+                        tooltip: 'Last lyric End',
                       ),
                       const SizedBox(width: 4),
                     ],
@@ -468,8 +546,8 @@ class MiniPlayerBar extends StatelessWidget {
                       : Icons.repeat_rounded,
                   onPressed: hasMedia ? () => pm.toggleRepeatLyric() : null,
                   tooltip: pm.repeatLyric
-                      ? 'Loop current lyric — click to play all sequentially'
-                      : 'Play all lyrics sequentially — click to loop current lyric',
+                      ? 'Loop current lyric (R) — click to play all sequentially'
+                      : 'Play all lyrics sequentially (R) — click to loop current lyric',
                   isActive: pm.repeatLyric,
                 ),
                 const SizedBox(width: 4),
@@ -481,8 +559,8 @@ class MiniPlayerBar extends StatelessWidget {
                       : Icons.closed_caption_off_rounded,
                   onPressed: hasMedia ? () => pm.toggleShowSubtitleTrack() : null,
                   tooltip: pm.showSubtitleTrack
-                      ? 'Subtitles on — click to turn off'
-                      : 'Subtitles off — click to enable',
+                      ? 'Subtitles on (S) — click to turn off'
+                      : 'Subtitles off (S) — click to enable',
                   isActive: pm.showSubtitleTrack,
                 ),
                 const SizedBox(width: 4),
@@ -494,12 +572,44 @@ class MiniPlayerBar extends StatelessWidget {
                       : Icons.visibility_off_rounded,
                   onPressed: hasMedia ? () => pm.toggleShowLyric() : null,
                   tooltip: pm.showLyric
-                      ? 'Show lyric on — click to turn off'
-                      : 'Show lyric off — click to show current lyric',
+                      ? 'Show lyric on (L) — click to turn off'
+                      : 'Show lyric off (L) — click to show current lyric',
                   isActive: pm.showLyric,
                 ),
 
-                // ── Spacer to push recorder to far right ──────────────────
+                const Spacer(),
+
+                // ── Lyric progress ruler ──────────────────────────────────────────
+                if (hasMedia && pm.hasSubtitles)
+                  SizedBox(
+                    width: 600,
+                    height: 24,
+                    child: LayoutBuilder(
+                      builder: (context, constraints) {
+                        final w = constraints.maxWidth;
+                        return CustomPaint(
+                          painter: _LyricRulerPainter(
+                            totalCount: pm.subtitles.length,
+                            currentIndex: pm.currentLyricIndex,
+                            theme: theme,
+                          ),
+                          child: GestureDetector(
+                            onTapDown: (details) {
+                              final box = context.findRenderObject() as RenderBox;
+                              final local = box.globalToLocal(details.globalPosition);
+                              final ratio = ((local.dx - 12) / (w - 24)).clamp(0.0, 1.0);
+                              final target = (ratio * (pm.subtitles.length - 1)).round().clamp(0, pm.subtitles.length - 1);
+                              if (target >= 0 && target < pm.subtitles.length) {
+                                final entry = pm.subtitles[target];
+                                pm.player.seek(entry.start);
+                              }
+                            },
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+
                 const Spacer(),
 
                 // ── Volume slider ────────────────────────────────────────────

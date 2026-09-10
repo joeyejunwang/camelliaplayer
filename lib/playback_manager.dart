@@ -60,6 +60,14 @@ class PlaybackManager extends ChangeNotifier {
   List<SubtitleEntry> get subtitles => _subtitles;
   bool get hasSubtitles => _subtitles.isNotEmpty;
 
+  int get currentLyricIndex {
+    if (_subtitles.isEmpty) return -1;
+    for (int i = _subtitles.length - 1; i >= 0; i--) {
+      if (_position >= _subtitles[i].start) return i;
+    }
+    return -1;
+  }
+
   double get progress => _duration.inMilliseconds > 0
       ? _position.inMilliseconds / _duration.inMilliseconds
       : 0.0;
