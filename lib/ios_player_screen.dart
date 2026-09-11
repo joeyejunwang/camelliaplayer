@@ -31,7 +31,6 @@ class _IOSPlayerScreenState extends State<IOSPlayerScreen> {
   bool _isLoading = true;
   bool _hasError = false;
   String? _errorMessage;
-  bool _showControls = true;
   bool _showLyrics = true;
   bool _showSubtitleOverlay = true;
   bool _repeatLyric = false;
@@ -351,7 +350,6 @@ class _IOSPlayerScreenState extends State<IOSPlayerScreen> {
                       icon: CupertinoIcons.text_badge_plus,
                       onPressed: _pickSubtitle,
                     ),
-                    _ToolbarDivider(),
                     _IOSControlButton(
                       icon: _repeatLyric
                           ? CupertinoIcons.repeat_1
@@ -359,7 +357,6 @@ class _IOSPlayerScreenState extends State<IOSPlayerScreen> {
                       onPressed: _subtitles.isEmpty ? null : _toggleRepeatLyric,
                       isActive: _repeatLyric,
                     ),
-                    _ToolbarDivider(),
                     _IOSControlButton(
                       icon: _showSubtitleOverlay
                           ? CupertinoIcons.captions_bubble_fill
@@ -399,76 +396,48 @@ class _IOSPlayerScreenState extends State<IOSPlayerScreen> {
             Flexible(
               flex: _showLyrics ? 4 : 9,
               fit: FlexFit.tight,
-              child: GestureDetector(
-                onTap: () => setState(() => _showControls = !_showControls),
-                child: Stack(
-                  alignment: Alignment.center,
-                  children: [
-                    // Video or Audio placeholder
-                    if (_isLoading)
-                      const CupertinoActivityIndicator(
-                        color: CupertinoColors.white,
-                      )
-                    else if (_hasError)
-                      _ErrorDisplay(message: _errorMessage ?? 'Unknown error')
-                    else if (_isMp3)
-                      _AudioDisplay(
-                        fileName: widget.videoName,
-                        isPlaying: _videoController?.value.isPlaying ?? false,
-                      )
-                    else
-                      _buildVideoView(),
+              child: Stack(
+                alignment: Alignment.center,
+                children: [
+                  // Video or Audio placeholder
+                  if (_isLoading)
+                    const CupertinoActivityIndicator(
+                      color: CupertinoColors.white,
+                    )
+                  else if (_hasError)
+                    _ErrorDisplay(message: _errorMessage ?? 'Unknown error')
+                  else if (_isMp3)
+                    _AudioDisplay(
+                      fileName: widget.videoName,
+                      isPlaying: _videoController?.value.isPlaying ?? false,
+                    )
+                  else
+                    _buildVideoView(),
 
-                    // Tap to play/pause
-                    if (!_isLoading && !_hasError)
-                      Positioned.fill(
-                        child: GestureDetector(
-                          onTap: () {
-                            _togglePlay();
-                            setState(() => _showControls = true);
-                          },
-                          behavior: HitTestBehavior.opaque,
-                          child: const SizedBox.expand(),
-                        ),
+                  // Tap to play/pause
+                  if (!_isLoading && !_hasError)
+                    Positioned.fill(
+                      child: GestureDetector(
+                        onTap: _togglePlay,
+                        behavior: HitTestBehavior.opaque,
+                        child: const SizedBox.expand(),
                       ),
+                    ),
 
-                    // Play/Pause overlay
-                    if (!_isLoading && !_hasError && _showControls && !_isMp3)
-                      AnimatedOpacity(
-                        opacity: _showControls ? 1.0 : 0.0,
-                        duration: const Duration(milliseconds: 200),
-                        child: Container(
-                          width: 80,
-                          height: 80,
-                          decoration: BoxDecoration(
-                            color: CupertinoColors.black.withValues(alpha: 0.6),
-                            shape: BoxShape.circle,
-                          ),
-                          child: Icon(
-                            _videoController?.value.isPlaying ?? false
-                                ? CupertinoIcons.pause_fill
-                                : CupertinoIcons.play_fill,
-                            size: 48,
-                            color: CupertinoColors.white,
-                          ),
-                        ),
+                  // Subtitle overlay
+                  if (!_isLoading &&
+                      _showSubtitleOverlay &&
+                      _subtitles.isNotEmpty)
+                    Positioned(
+                      bottom: 60,
+                      left: 20,
+                      right: 20,
+                      child: _SubtitleOverlay(
+                        subtitles: _subtitles,
+                        currentIndex: _currentSubtitleIndex,
                       ),
-
-                    // Subtitle overlay
-                    if (!_isLoading &&
-                        _showSubtitleOverlay &&
-                        _subtitles.isNotEmpty)
-                      Positioned(
-                        bottom: 60,
-                        left: 20,
-                        right: 20,
-                        child: _SubtitleOverlay(
-                          subtitles: _subtitles,
-                          currentIndex: _currentSubtitleIndex,
-                        ),
-                      ),
-                  ],
-                ),
+                    ),
+                ],
               ),
             ),
 
@@ -485,7 +454,6 @@ class _IOSPlayerScreenState extends State<IOSPlayerScreen> {
                   scrollController: _lyricsScrollController,
                   onTap: (entry) {
                     _seekToSubtitleIndex(_subtitles.indexOf(entry));
-                    setState(() => _showControls = true);
                   },
                 ),
               ),
@@ -493,25 +461,10 @@ class _IOSPlayerScreenState extends State<IOSPlayerScreen> {
             // Audio and video share the same playback feature set.
             if (!_isLoading && !_hasError)
               _IOSPlayerControls(
-                position: _position,
-                duration: _duration,
                 isPlaying: _videoController?.value.isPlaying ?? false,
                 subtitles: _subtitles,
                 currentLyricIndex: _timelineLyricIndex,
                 onPlayPause: _togglePlay,
-                onSeek: _seekTo,
-                onSkipBack: () => _seekTo(
-                  (_position - const Duration(seconds: 10)).clamp(
-                    Duration.zero,
-                    _duration,
-                  ),
-                ),
-                onSkipForward: () => _seekTo(
-                  (_position + const Duration(seconds: 10)).clamp(
-                    Duration.zero,
-                    _duration,
-                  ),
-                ),
                 onFirstLyric: _subtitles.isEmpty
                     ? null
                     : () => _seekToSubtitleIndex(0),
@@ -523,7 +476,6 @@ class _IOSPlayerScreenState extends State<IOSPlayerScreen> {
                     ? null
                     : () => _seekToSubtitleIndex(_subtitles.length - 1),
                 onLyricChanged: _seekToSubtitleIndex,
-                formatDuration: _formatDuration,
               ),
           ],
         ),
@@ -804,38 +756,26 @@ class _LyricsPanel extends StatelessWidget {
 
 class _IOSPlayerControls extends StatelessWidget {
   const _IOSPlayerControls({
-    required this.position,
-    required this.duration,
     required this.isPlaying,
     required this.subtitles,
     required this.currentLyricIndex,
     required this.onPlayPause,
-    required this.onSeek,
-    required this.onSkipBack,
-    required this.onSkipForward,
     required this.onFirstLyric,
     required this.onPreviousLyric,
     required this.onNextLyric,
     required this.onLastLyric,
     required this.onLyricChanged,
-    required this.formatDuration,
   });
 
-  final Duration position;
-  final Duration duration;
   final bool isPlaying;
   final List<SubtitleEntry> subtitles;
   final int currentLyricIndex;
   final VoidCallback onPlayPause;
-  final void Function(Duration) onSeek;
-  final VoidCallback onSkipBack;
-  final VoidCallback onSkipForward;
   final VoidCallback? onFirstLyric;
   final VoidCallback? onPreviousLyric;
   final VoidCallback? onNextLyric;
   final VoidCallback? onLastLyric;
   final ValueChanged<int> onLyricChanged;
-  final String Function(Duration) formatDuration;
 
   @override
   Widget build(BuildContext context) {
@@ -845,41 +785,6 @@ class _IOSPlayerControls extends StatelessWidget {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          CupertinoSlider(
-            value: duration.inMilliseconds > 0
-                ? (position.inMilliseconds / duration.inMilliseconds).clamp(
-                    0.0,
-                    1.0,
-                  )
-                : 0.0,
-            activeColor: CupertinoColors.systemPink,
-            onChanged: (value) {
-              final newPosition = Duration(
-                milliseconds: (value * duration.inMilliseconds).round(),
-              );
-              onSeek(newPosition);
-            },
-          ),
-          Row(
-            children: [
-              Text(
-                '${formatDuration(position)} / ${formatDuration(duration)}',
-                style: TextStyle(
-                  color: CupertinoColors.white.withValues(alpha: 0.8),
-                  fontSize: 12,
-                ),
-              ),
-              const Spacer(),
-              _IOSControlButton(
-                icon: CupertinoIcons.gobackward_10,
-                onPressed: onSkipBack,
-              ),
-              _IOSControlButton(
-                icon: CupertinoIcons.goforward_10,
-                onPressed: onSkipForward,
-              ),
-            ],
-          ),
           if (subtitles.isNotEmpty) ...[
             const SizedBox(height: 2),
             Row(
@@ -1006,25 +911,5 @@ class _IOSControlButton extends StatelessWidget {
         ),
       ),
     );
-  }
-}
-
-class _ToolbarDivider extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: 1,
-      height: 34,
-      margin: const EdgeInsets.symmetric(horizontal: 2),
-      color: CupertinoColors.white.withValues(alpha: 0.75),
-    );
-  }
-}
-
-extension on Duration {
-  Duration clamp(Duration min, Duration max) {
-    if (this < min) return min;
-    if (this > max) return max;
-    return this;
   }
 }
