@@ -131,7 +131,11 @@ class _IOSHomeScreenState extends State<IOSHomeScreen> {
     }
   }
 
-  Future<void> _openFile(String path, {String? selectedSubtitlePath}) async {
+  Future<void> _openFile(
+    String path, {
+    String? selectedSubtitlePath,
+    int? initialLyricIndex,
+  }) async {
     final file = File(path);
     if (!await file.exists()) {
       if (!mounted) return;
@@ -175,7 +179,12 @@ class _IOSHomeScreenState extends State<IOSHomeScreen> {
 
     // Save as last played
     await LastPlayedStore.write(
-      LastPlayed(path: path, name: displayName, timestamp: DateTime.now()),
+      LastPlayed(
+        path: path,
+        name: displayName,
+        timestamp: DateTime.now(),
+        lyricIndex: initialLyricIndex,
+      ),
     );
 
     if (!mounted) return;
@@ -185,6 +194,7 @@ class _IOSHomeScreenState extends State<IOSHomeScreen> {
           videoPath: path,
           videoName: displayName,
           subtitlePath: foundSubtitle?.path,
+          initialLyricIndex: initialLyricIndex,
         ),
       ),
     );
@@ -327,7 +337,10 @@ class _IOSHomeScreenState extends State<IOSHomeScreen> {
             if (_lastPlayed != null)
               _LastPlayedCard(
                 record: _lastPlayed!,
-                onTap: () => _openFile(_lastPlayed!.path),
+                onTap: () => _openFile(
+                  _lastPlayed!.path,
+                  initialLyricIndex: _lastPlayed!.lyricIndex,
+                ),
               ),
 
             // File list

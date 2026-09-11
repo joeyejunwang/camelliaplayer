@@ -6,6 +6,7 @@ import 'package:video_player/video_player.dart';
 import 'package:path/path.dart' as p;
 import 'package:file_picker/file_picker.dart';
 
+import 'last_played.dart';
 import 'subtitle_loader.dart';
 
 /// iOS-specific video player screen using native video_player
@@ -15,11 +16,13 @@ class IOSPlayerScreen extends StatefulWidget {
     required this.videoPath,
     required this.videoName,
     this.subtitlePath,
+    this.initialLyricIndex,
   });
 
   final String videoPath;
   final String videoName;
   final String? subtitlePath;
+  final int? initialLyricIndex;
 
   @override
   State<IOSPlayerScreen> createState() => _IOSPlayerScreenState();
@@ -36,6 +39,8 @@ class _IOSPlayerScreenState extends State<IOSPlayerScreen> {
   bool _repeatLyric = true;
   bool _automaticSeekPending = false;
   int? _loopLyricIndex;
+  int? _lastPersistedLyricIndex;
+  Future<void> _persistQueue = Future<void>.value();
   int? _lastScrolledIndex;
   double _volume = 1;
   double _lastAudibleVolume = 1;
@@ -71,8 +76,10 @@ class _IOSPlayerScreenState extends State<IOSPlayerScreen> {
             _showLyrics = true;
           });
           if (loaded.isNotEmpty) {
-            _loopLyricIndex = 0;
-            await _videoController!.seekTo(loaded.first.start);
+            final initialIndex = _initialIndexFor(loaded);
+            _loopLyricIndex = initialIndex;
+            _persistLyricIndex(initialIndex);
+            await _videoController!.seekTo(loaded[initialIndex].start);
           }
         }
       }
@@ -98,6 +105,10 @@ class _IOSPlayerScreenState extends State<IOSPlayerScreen> {
   void _videoListener() {
     if (!mounted || _videoController == null) return;
     _handleLyricPlayback();
+    final index = _repeatLyric
+        ? (_loopLyricIndex ?? _timelineLyricIndex)
+        : _timelineLyricIndex;
+    if (index >= 0) _persistLyricIndex(index);
     setState(() {});
     _scrollToCurrentLyric();
   }
@@ -155,9 +166,11 @@ class _IOSPlayerScreenState extends State<IOSPlayerScreen> {
         _showLyrics = loaded.isNotEmpty;
         _showSubtitleOverlay = true;
         _repeatLyric = true;
-        _loopLyricIndex = 0;
+        _loopLyricIndex = _initialIndexFor(loaded);
       });
-      await _videoController?.seekTo(loaded.first.start);
+      final initialIndex = _loopLyricIndex!;
+      _persistLyricIndex(initialIndex);
+      await _videoController?.seekTo(loaded[initialIndex].start);
       await _videoController?.play();
     } catch (e) {
       if (!mounted) return;
@@ -196,6 +209,22 @@ class _IOSPlayerScreenState extends State<IOSPlayerScreen> {
       if (_position >= _subtitles[i].start) return i;
     }
     return -1;
+  }
+
+  int _initialIndexFor(List<SubtitleEntry> subtitles) {
+    return (widget.initialLyricIndex ?? 0).clamp(0, subtitles.length - 1);
+  }
+
+  void _persistLyricIndex(int index) {
+    if (index == _lastPersistedLyricIndex) return;
+    _lastPersistedLyricIndex = index;
+    final record = LastPlayed(
+      path: widget.videoPath,
+      name: widget.videoName,
+      timestamp: DateTime.now(),
+      lyricIndex: index,
+    );
+    _persistQueue = _persistQueue.then((_) => LastPlayedStore.write(record));
   }
 
   void _handleLyricPlayback() {
@@ -242,6 +271,7 @@ class _IOSPlayerScreenState extends State<IOSPlayerScreen> {
   void _seekToSubtitleIndex(int index) {
     if (index < 0 || index >= _subtitles.length) return;
     _loopLyricIndex = index;
+    _persistLyricIndex(index);
     unawaited(_seekTo(_subtitles[index].start));
   }
 
