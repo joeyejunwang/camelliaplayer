@@ -9,11 +9,19 @@ import 'player_screen.dart';
 
 /// Extensions accepted for drag-and-drop / file picker.
 const _supportedExts = [
-  'mp3', 'wav', 'mp4', 'm4v', 'mkv', 'webm', 'mov', 'avi', 'wmv',
+  'mp3',
+  'wav',
+  'mp4',
+  'm4v',
+  'mkv',
+  'webm',
+  'mov',
+  'avi',
+  'wmv',
 ];
 
 /// Subtitle candidates looked up next to the media file (basename + ext).
-const _subtitleExts = ['srt', 'vtt', 'ass', 'ssa', 'sub'];
+const _subtitleExts = ['srt', 'vtt', 'ass', 'ssa'];
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -51,9 +59,9 @@ class _HomeScreenState extends State<HomeScreen> {
     final file = File(absolutePath);
     if (!file.existsSync()) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('File not found: $absolutePath')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('File not found: $absolutePath')));
       return;
     }
 
@@ -71,7 +79,11 @@ class _HomeScreenState extends State<HomeScreen> {
     }
 
     await LastPlayedStore.write(
-      LastPlayed(path: absolutePath, name: displayName, timestamp: DateTime.now()),
+      LastPlayed(
+        path: absolutePath,
+        name: displayName,
+        timestamp: DateTime.now(),
+      ),
     );
 
     setState(() => _videoPath = displayName);
@@ -121,7 +133,9 @@ class _HomeScreenState extends State<HomeScreen> {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('No supported media file in the drop. Try .mp4 or .wav.'),
+          content: Text(
+            'No supported media file in the drop. Try .mp4 or .wav.',
+          ),
         ),
       );
       return;
@@ -145,7 +159,10 @@ class _HomeScreenState extends State<HomeScreen> {
           child: Stack(
             children: [
               SingleChildScrollView(
-                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 24,
+                  vertical: 32,
+                ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
@@ -154,7 +171,8 @@ class _HomeScreenState extends State<HomeScreen> {
                     const SizedBox(height: 32),
                     _PickerCard(
                       title: 'Audio or video file',
-                      subtitle: _videoPath ?? 'Pick or drop an .mp4, .wav, .mp3, …',
+                      subtitle:
+                          _videoPath ?? 'Pick or drop an .mp4, .wav, .mp3, …',
                       icon: Icons.perm_media_outlined,
                       actionLabel: 'Choose file',
                       onTap: _pickVideo,
@@ -217,7 +235,7 @@ class _Header extends StatelessWidget {
               ),
               const SizedBox(height: 4),
               Text(
-                'A simple Flutter audio and video player for Windows & Web.',
+                'A simple Flutter audio and video player for Windows.',
                 style: theme.textTheme.bodyMedium?.copyWith(
                   color: theme.colorScheme.onSurfaceVariant,
                 ),
@@ -410,10 +428,7 @@ class _TipBanner extends StatelessWidget {
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Icon(
-              Icons.info_outline,
-              color: theme.colorScheme.onSurfaceVariant,
-            ),
+            Icon(Icons.info_outline, color: theme.colorScheme.onSurfaceVariant),
             const SizedBox(width: 12),
             Expanded(
               child: Text(
@@ -465,10 +480,7 @@ class _PickerCard extends StatelessWidget {
               CircleAvatar(
                 radius: 24,
                 backgroundColor: theme.colorScheme.primaryContainer,
-                child: Icon(
-                  icon,
-                  color: theme.colorScheme.onPrimaryContainer,
-                ),
+                child: Icon(icon, color: theme.colorScheme.onPrimaryContainer),
               ),
               const SizedBox(width: 16),
               Expanded(

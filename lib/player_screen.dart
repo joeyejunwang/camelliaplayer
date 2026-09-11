@@ -40,11 +40,19 @@ class _PlayerScreenState extends State<PlayerScreen> {
   final ScrollController _lyricsScrollController = ScrollController();
   int? _lastScrolledIndex;
 
-  bool get _isMp3 => p.extension(
-        widget.videoFile?.path ?? widget.videoPath ?? widget.videoName,
-      ).toLowerCase() == '.mp3' || p.extension(
-        widget.videoFile?.path ?? widget.videoPath ?? widget.videoName,
-      ).toLowerCase() == '.wav';
+  bool get _isMp3 =>
+      p
+              .extension(
+                widget.videoFile?.path ?? widget.videoPath ?? widget.videoName,
+              )
+              .toLowerCase() ==
+          '.mp3' ||
+      p
+              .extension(
+                widget.videoFile?.path ?? widget.videoPath ?? widget.videoName,
+              )
+              .toLowerCase() ==
+          '.wav';
 
   @override
   void initState() {
@@ -212,7 +220,9 @@ class _PlayerScreenState extends State<PlayerScreen> {
   void _seekToEntry(SubtitleEntry entry) {
     final pm = PlaybackManager.instance;
     final idx = _subtitles.indexOf(entry);
-    final nextEntry = (idx >= 0 && idx + 1 < _subtitles.length) ? _subtitles[idx + 1] : null;
+    final nextEntry = (idx >= 0 && idx + 1 < _subtitles.length)
+        ? _subtitles[idx + 1]
+        : null;
     pm.setLyricLoopSegment(start: entry.start, end: nextEntry?.start);
     pm.seek(entry.start);
   }
@@ -227,16 +237,35 @@ class _PlayerScreenState extends State<PlayerScreen> {
 
     return CallbackShortcuts(
       bindings: {
-        const SingleActivator(LogicalKeyboardKey.space): hasMedia ? () => pm.togglePlay() : noop,
-        const SingleActivator(LogicalKeyboardKey.home): hasMedia ? () => pm.playFirstLyric() : noop,
-        const SingleActivator(LogicalKeyboardKey.arrowLeft): hasMedia ? () => pm.playPreviousLyric() : noop,
-        const SingleActivator(LogicalKeyboardKey.arrowRight): hasMedia ? () => pm.playNextLyric() : noop,
-        const SingleActivator(LogicalKeyboardKey.end): hasMedia ? () => pm.playLastLyric() : noop,
-        const SingleActivator(LogicalKeyboardKey.keyR): hasMedia ? () => pm.toggleRepeatLyric() : noop,
-        const SingleActivator(LogicalKeyboardKey.keyL): () => pm.toggleShowLyric(),
-        const SingleActivator(LogicalKeyboardKey.arrowUp): hasMedia ? () => pm.setVolume((pm.volume + 0.1).clamp(0.0, 1.0)) : noop,
-        const SingleActivator(LogicalKeyboardKey.arrowDown): hasMedia ? () => pm.setVolume((pm.volume - 0.1).clamp(0.0, 1.0)) : noop,
-        const SingleActivator(LogicalKeyboardKey.keyS): hasMedia ? () => pm.toggleShowSubtitleTrack() : noop,
+        const SingleActivator(LogicalKeyboardKey.space): hasMedia
+            ? () => pm.togglePlay()
+            : noop,
+        const SingleActivator(LogicalKeyboardKey.home): hasMedia
+            ? () => pm.playFirstLyric()
+            : noop,
+        const SingleActivator(LogicalKeyboardKey.arrowLeft): hasMedia
+            ? () => pm.playPreviousLyric()
+            : noop,
+        const SingleActivator(LogicalKeyboardKey.arrowRight): hasMedia
+            ? () => pm.playNextLyric()
+            : noop,
+        const SingleActivator(LogicalKeyboardKey.end): hasMedia
+            ? () => pm.playLastLyric()
+            : noop,
+        const SingleActivator(LogicalKeyboardKey.keyR): hasMedia
+            ? () => pm.toggleRepeatLyric()
+            : noop,
+        const SingleActivator(LogicalKeyboardKey.keyL): () =>
+            pm.toggleShowLyric(),
+        const SingleActivator(LogicalKeyboardKey.arrowUp): hasMedia
+            ? () => pm.setVolume((pm.volume + 0.1).clamp(0.0, 1.0))
+            : noop,
+        const SingleActivator(LogicalKeyboardKey.arrowDown): hasMedia
+            ? () => pm.setVolume((pm.volume - 0.1).clamp(0.0, 1.0))
+            : noop,
+        const SingleActivator(LogicalKeyboardKey.keyS): hasMedia
+            ? () => pm.toggleShowSubtitleTrack()
+            : noop,
       },
       child: Focus(
         autofocus: true,
@@ -262,8 +291,11 @@ class _PlayerScreenState extends State<PlayerScreen> {
                                       child: Column(
                                         mainAxisSize: MainAxisSize.min,
                                         children: [
-                                          const Icon(Icons.music_note_rounded,
-                                              size: 80, color: Colors.white70),
+                                          const Icon(
+                                            Icons.music_note_rounded,
+                                            size: 80,
+                                            color: Colors.white70,
+                                          ),
                                           const SizedBox(height: 16),
                                           Text(
                                             widget.videoName,
@@ -271,15 +303,17 @@ class _PlayerScreenState extends State<PlayerScreen> {
                                             maxLines: 2,
                                             overflow: TextOverflow.ellipsis,
                                             style: const TextStyle(
-                                                color: Colors.white, fontSize: 20),
+                                              color: Colors.white,
+                                              fontSize: 20,
+                                            ),
                                           ),
                                         ],
                                       ),
                                     )
                                   : Video(
-                                controller: _videoController,
-                                controls: NoVideoControls,
-                              ),
+                                      controller: _videoController,
+                                      controls: NoVideoControls,
+                                    ),
                             ),
                           ),
 
@@ -295,7 +329,11 @@ class _PlayerScreenState extends State<PlayerScreen> {
                                 borderRadius: BorderRadius.circular(20),
                                 child: const Padding(
                                   padding: EdgeInsets.all(8),
-                                  child: Icon(Icons.arrow_back, color: Colors.white, size: 22),
+                                  child: Icon(
+                                    Icons.arrow_back,
+                                    color: Colors.white,
+                                    size: 22,
+                                  ),
                                 ),
                               ),
                             ),
@@ -309,12 +347,15 @@ class _PlayerScreenState extends State<PlayerScreen> {
                               color: Colors.black.withValues(alpha: 0.5),
                               borderRadius: BorderRadius.circular(20),
                               child: InkWell(
-                                onTap: () => PlaybackManager.instance.toggleShowLyric(),
+                                onTap: () =>
+                                    PlaybackManager.instance.toggleShowLyric(),
                                 borderRadius: BorderRadius.circular(20),
                                 child: Padding(
                                   padding: const EdgeInsets.all(8),
                                   child: Icon(
-                                    PlaybackManager.instance.showLyric ? Icons.view_sidebar : Icons.view_sidebar_outlined,
+                                    PlaybackManager.instance.showLyric
+                                        ? Icons.view_sidebar
+                                        : Icons.view_sidebar_outlined,
                                     color: Colors.white,
                                     size: 22,
                                   ),
@@ -375,10 +416,7 @@ class _LyricsPanel extends StatelessWidget {
       decoration: BoxDecoration(
         color: theme.colorScheme.surfaceContainerLow,
         border: Border(
-          left: BorderSide(
-            color: theme.colorScheme.outlineVariant,
-            width: 0.5,
-          ),
+          left: BorderSide(color: theme.colorScheme.outlineVariant, width: 0.5),
         ),
       ),
       child: Column(
@@ -415,8 +453,8 @@ class _LyricsPanel extends StatelessWidget {
                   subtitles.isEmpty
                       ? ''
                       : currentIndex == null || currentIndex == -1
-                          ? ''
-                          : '${currentIndex! + 1} / ${subtitles.length} lines',
+                      ? ''
+                      : '${currentIndex! + 1} / ${subtitles.length} lines',
                   style: theme.textTheme.bodySmall?.copyWith(
                     color: theme.colorScheme.onSurfaceVariant,
                   ),

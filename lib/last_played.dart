@@ -1,10 +1,12 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:path_provider/path_provider.dart';
+
 /// Persisted record of the last media file played by the user.
 ///
-/// Stored as a small JSON file next to the app executable so it survives
-/// restarts without requiring any extra plugins (no path_provider needed).
+/// Stored as a small JSON file in the platform's application-support
+/// directory so it remains writable in installed Windows and iOS builds.
 class LastPlayed {
   LastPlayed({required this.path, required this.name, required this.timestamp});
 
@@ -13,36 +15,34 @@ class LastPlayed {
   final DateTime timestamp;
 
   Map<String, dynamic> toJson() => {
-        'path': path,
-        'name': name,
-        'timestamp': timestamp.toIso8601String(),
-      };
+    'path': path,
+    'name': name,
+    'timestamp': timestamp.toIso8601String(),
+  };
 
   factory LastPlayed.fromJson(Map<String, dynamic> json) => LastPlayed(
-        path: json['path'] as String,
-        name: json['name'] as String,
-        timestamp: DateTime.tryParse(json['timestamp'] as String? ?? '') ??
-            DateTime.fromMillisecondsSinceEpoch(0),
-      );
+    path: json['path'] as String,
+    name: json['name'] as String,
+    timestamp:
+        DateTime.tryParse(json['timestamp'] as String? ?? '') ??
+        DateTime.fromMillisecondsSinceEpoch(0),
+  );
 }
 
 /// Reads / writes the last-played JSON record.
 class LastPlayedStore {
   LastPlayedStore._();
 
-  /// `last_played.json` next to the running executable.
-  static File get _file {
-    // On Windows the executable lives in `build\...\.exe`; the directory
-    // is writable on dev machines. Falls back to current dir if null.
-    final exe = Platform.resolvedExecutable;
-    final dir = exe.isNotEmpty ? File(exe).parent.path : Directory.current.path;
-    return File('$dir${Platform.pathSeparator}last_played.json');
+  static Future<File> get _file async {
+    final dir = await getApplicationSupportDirectory();
+    if (!await dir.exists()) await dir.create(recursive: true);
+    return File('${dir.path}${Platform.pathSeparator}last_played.json');
   }
 
   static Future<LastPlayed?> read() async {
     try {
-      final f = _file;
-      if (!f.existsSync()) return null;
+      final f = await _file;
+      if (!await f.exists()) return null;
       final txt = await f.readAsString();
       if (txt.trim().isEmpty) return null;
       final json = jsonDecode(txt) as Map<String, dynamic>;
@@ -54,7 +54,7 @@ class LastPlayedStore {
 
   static Future<void> write(LastPlayed record) async {
     try {
-      final f = _file;
+      final f = await _file;
       await f.writeAsString(jsonEncode(record.toJson()));
     } catch (_) {
       // Swallow write errors — last-played is best-effort.
@@ -63,8 +63,8 @@ class LastPlayedStore {
 
   static Future<void> clear() async {
     try {
-      final f = _file;
-      if (f.existsSync()) await f.delete();
+      final f = await _file;
+      if (await f.exists()) await f.delete();
     } catch (_) {}
   }
 }

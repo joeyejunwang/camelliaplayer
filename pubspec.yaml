@@ -1,5 +1,5 @@
 name: flutter_video_player
-description: "A new Flutter project."
+description: "A local audio and video player for Windows and iOS."
 # The following line prevents the package from being accidentally published to
 # pub.dev using `flutter pub publish`. This is preferred for private packages.
 publish_to: 'none' # Remove this line if you wish to publish to pub.dev
@@ -64,6 +64,9 @@ dev_dependencies:
   # rules and activating additional ones.
   flutter_lints: ^6.0.0
 
+# `record` 5.x resolves this transitive implementation while compiling the
+# package graph on iOS. Older releases do not implement the current interface.
+# This compatibility pin does not make Linux a supported application target.
 dependency_overrides:
   record_linux: ^1.2.0
 

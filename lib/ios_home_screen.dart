@@ -11,11 +11,18 @@ import 'last_played.dart';
 
 /// Supported media extensions for iOS
 const _supportedExts = [
-  'mp3', 'wav', 'mp4', 'm4v', 'mkv', 'webm', 'mov', 'avi',
+  'mp3',
+  'wav',
+  'mp4',
+  'm4v',
+  'mkv',
+  'webm',
+  'mov',
+  'avi',
 ];
 
 /// Subtitle candidates looked up next to the media file (basename + ext).
-const _subtitleExts = ['srt', 'vtt', 'ass', 'ssa', 'sub'];
+const _subtitleExts = ['srt', 'vtt', 'ass', 'ssa'];
 
 /// iOS-specific home screen that displays a list of MP4/media files.
 class IOSHomeScreen extends StatefulWidget {
@@ -42,15 +49,21 @@ class _IOSHomeScreenState extends State<IOSHomeScreen> {
   Future<void> _loadLastPlayed() async {
     final lp = await LastPlayedStore.read();
     if (!mounted) return;
+    if (lp != null && !await File(lp.path).exists()) {
+      await LastPlayedStore.clear();
+      if (!mounted) return;
+      setState(() => _lastPlayed = null);
+      return;
+    }
     setState(() => _lastPlayed = lp);
   }
 
   Future<void> _loadFiles() async {
     setState(() => _isLoading = true);
-    
+
     try {
       List<FileSystemEntity> entities;
-      
+
       if (_currentDirectory == null) {
         // Load from documents directory
         final docDir = await getApplicationDocumentsDirectory();
@@ -59,7 +72,7 @@ class _IOSHomeScreenState extends State<IOSHomeScreen> {
       } else {
         entities = await _listMediaFiles(_currentDirectory!);
       }
-      
+
       if (!mounted) return;
       setState(() {
         _files = entities;
@@ -78,13 +91,16 @@ class _IOSHomeScreenState extends State<IOSHomeScreen> {
     try {
       final dir = Directory(directoryPath);
       if (!await dir.exists()) return [];
-      
+
       final entities = await dir.list().toList();
       final mediaFiles = <FileSystemEntity>[];
-      
+
       for (final entity in entities) {
         if (entity is File) {
-          final ext = p.extension(entity.path).toLowerCase().replaceFirst('.', '');
+          final ext = p
+              .extension(entity.path)
+              .toLowerCase()
+              .replaceFirst('.', '');
           if (_supportedExts.contains(ext)) {
             mediaFiles.add(entity);
           }
@@ -96,16 +112,19 @@ class _IOSHomeScreenState extends State<IOSHomeScreen> {
           }
         }
       }
-      
+
       // Sort: directories first, then files, alphabetically
       mediaFiles.sort((a, b) {
         final aIsDir = a is Directory;
         final bIsDir = b is Directory;
         if (aIsDir && !bIsDir) return -1;
         if (!aIsDir && bIsDir) return 1;
-        return p.basename(a.path).toLowerCase().compareTo(p.basename(b.path).toLowerCase());
+        return p
+            .basename(a.path)
+            .toLowerCase()
+            .compareTo(p.basename(b.path).toLowerCase());
       });
-      
+
       return mediaFiles;
     } catch (e) {
       return [];
@@ -121,7 +140,7 @@ class _IOSHomeScreenState extends State<IOSHomeScreen> {
     }
 
     final displayName = p.basename(path);
-    final baseName = p.basenameWithoutExtension(path);
+    final baseName = p.withoutExtension(path);
 
     // Find subtitle file
     File? foundSubtitle;
@@ -157,7 +176,7 @@ class _IOSHomeScreenState extends State<IOSHomeScreen> {
       type: FileType.custom,
       allowedExtensions: _supportedExts,
     );
-    
+
     if (result != null && result.files.single.path != null) {
       await _openFile(result.files.single.path!);
     }
@@ -202,8 +221,8 @@ class _IOSHomeScreenState extends State<IOSHomeScreen> {
       backgroundColor: CupertinoColors.systemGroupedBackground,
       navigationBar: CupertinoNavigationBar(
         middle: Text(
-          _currentDirectory != null 
-              ? p.basename(_currentDirectory!) 
+          _currentDirectory != null
+              ? p.basename(_currentDirectory!)
               : 'Camellia Player',
         ),
         leading: _directoryStack.isNotEmpty
@@ -238,18 +257,18 @@ class _IOSHomeScreenState extends State<IOSHomeScreen> {
                 record: _lastPlayed!,
                 onTap: () => _openFile(_lastPlayed!.path),
               ),
-            
+
             // File list
             Expanded(
               child: _isLoading
                   ? const Center(child: CupertinoActivityIndicator())
                   : _files.isEmpty
-                      ? _EmptyState(onPickFile: _pickFile)
-                      : _FileListView(
-                          files: _files,
-                          onFileTap: _openFile,
-                          onDirectoryTap: _navigateToDirectory,
-                        ),
+                  ? _EmptyState(onPickFile: _pickFile)
+                  : _FileListView(
+                      files: _files,
+                      onFileTap: _openFile,
+                      onDirectoryTap: _navigateToDirectory,
+                    ),
             ),
           ],
         ),
@@ -259,10 +278,7 @@ class _IOSHomeScreenState extends State<IOSHomeScreen> {
 }
 
 class _LastPlayedCard extends StatelessWidget {
-  const _LastPlayedCard({
-    required this.record,
-    required this.onTap,
-  });
+  const _LastPlayedCard({required this.record, required this.onTap});
 
   final LastPlayed record;
   final VoidCallback onTap;
@@ -287,10 +303,7 @@ class _LastPlayedCard extends StatelessWidget {
                 color: Colors.white.withValues(alpha: 0.2),
                 borderRadius: BorderRadius.circular(12),
               ),
-              child: const Icon(
-                CupertinoIcons.play_fill,
-                color: Colors.white,
-              ),
+              child: const Icon(CupertinoIcons.play_fill, color: Colors.white),
             ),
             const SizedBox(width: 12),
             Expanded(
@@ -349,10 +362,10 @@ class _FileListView extends StatelessWidget {
         final file = files[index];
         final name = p.basename(file.path);
         final isDirectory = file is Directory;
-        
+
         IconData icon;
         Color iconColor;
-        
+
         if (isDirectory) {
           icon = CupertinoIcons.folder_fill;
           iconColor = CupertinoColors.systemBlue;
@@ -366,14 +379,10 @@ class _FileListView extends StatelessWidget {
             iconColor = CupertinoColors.systemPurple;
           }
         }
-        
+
         return CupertinoListTile(
           leading: Icon(icon, color: iconColor),
-          title: Text(
-            name,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-          ),
+          title: Text(name, maxLines: 1, overflow: TextOverflow.ellipsis),
           trailing: isDirectory
               ? const Icon(
                   CupertinoIcons.chevron_right,

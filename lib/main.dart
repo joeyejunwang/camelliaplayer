@@ -9,25 +9,24 @@ import 'home_screen.dart';
 import 'ios_home_screen.dart';
 
 /// Main entry point for Camellia Player
-/// Handles Windows desktop, iOS, and Web platforms
+/// Handles the supported Windows and iOS platforms.
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Only initialize MediaKit and window_manager on platforms that support them
-  if (isDesktopPlatform) {
+  // The desktop player and window chrome are Windows-only.
+  if (isWindowsPlatform) {
     MediaKit.ensureInitialized();
     try {
       await _initDesktopWindow();
     } catch (e) {
-      // window_manager not supported on this platform; continue silently
-      debugPrint('Window manager init skipped: $e');
+      debugPrint('Windows window initialization failed: $e');
     }
   }
 
   runApp(const CamelliaPlayerApp());
 }
 
-/// Initialize window for desktop platforms
+/// Initializes the Windows desktop window.
 Future<void> _initDesktopWindow() async {
   await windowManager.ensureInitialized();
 
@@ -53,10 +52,10 @@ bool get isIOSPlatform {
   return defaultTargetPlatform == TargetPlatform.iOS;
 }
 
-/// Determines if the current platform supports window_manager
-bool get isDesktopPlatform {
+/// Determines if the current platform is Windows.
+bool get isWindowsPlatform {
   if (kIsWeb) return false;
-  return !isIOSPlatform && defaultTargetPlatform != TargetPlatform.android;
+  return defaultTargetPlatform == TargetPlatform.windows;
 }
 
 class CamelliaPlayerApp extends StatelessWidget {
@@ -64,7 +63,8 @@ class CamelliaPlayerApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Use iOS home screen for iOS devices, desktop home screen for others
+    // iOS gets its native-style UI. The Material branch is the Windows UI;
+    // keeping it as the fallback also lets widget tests run on a macOS host.
     if (isIOSPlatform) {
       // iOS uses Cupertino design
       return const CupertinoApp(
@@ -78,7 +78,7 @@ class CamelliaPlayerApp extends StatelessWidget {
       );
     }
 
-    // Windows, Web, Android use Material design
+    // Windows uses Material design.
     final scheme = ColorScheme.fromSeed(
       seedColor: const Color(0xFFE91E63),
       brightness: Brightness.light,

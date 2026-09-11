@@ -1,7 +1,6 @@
 import 'dart:io';
 
 import 'package:flutter/cupertino.dart';
-import 'package:flutter/material.dart';
 import 'package:video_player/video_player.dart';
 import 'package:path/path.dart' as p;
 import 'package:file_picker/file_picker.dart';
@@ -49,22 +48,23 @@ class _IOSPlayerScreenState extends State<IOSPlayerScreen> {
       final file = File(widget.videoPath);
       _videoController = VideoPlayerController.file(file);
       await _videoController!.initialize();
-      
+
       // Load subtitles if available
       if (widget.subtitlePath != null) {
         final subFile = File(widget.subtitlePath!);
         if (await subFile.exists()) {
           final loaded = await SubtitleLoader.loadFromFile(subFile);
+          if (!mounted) return;
           setState(() => _subtitles = loaded);
         }
       }
-      
+
       if (!mounted) return;
       setState(() {
         _isLoading = false;
         _hasError = false;
       });
-      
+
       _videoController!.play();
       _videoController!.addListener(_videoListener);
     } catch (e) {
@@ -103,7 +103,7 @@ class _IOSPlayerScreenState extends State<IOSPlayerScreen> {
     try {
       final result = await FilePicker.platform.pickFiles(
         type: FileType.custom,
-        allowedExtensions: ['srt', 'vtt', 'ass', 'ssa', 'sub'],
+        allowedExtensions: ['srt', 'vtt', 'ass', 'ssa'],
       );
       if (result == null) return;
       final path = result.files.single.path;
@@ -157,10 +157,7 @@ class _IOSPlayerScreenState extends State<IOSPlayerScreen> {
         leading: CupertinoButton(
           padding: EdgeInsets.zero,
           onPressed: () => Navigator.of(context).pop(),
-          child: const Icon(
-            CupertinoIcons.back,
-            color: CupertinoColors.white,
-          ),
+          child: const Icon(CupertinoIcons.back, color: CupertinoColors.white),
         ),
         middle: Text(
           widget.videoName,
@@ -175,7 +172,10 @@ class _IOSPlayerScreenState extends State<IOSPlayerScreen> {
             // Top control bar: subtitle picker + lyrics toggle (above player)
             if (!_isLoading && !_hasError)
               Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 6,
+                ),
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.end,
                   children: [
@@ -190,8 +190,8 @@ class _IOSPlayerScreenState extends State<IOSPlayerScreen> {
                     const SizedBox(width: 4),
                     CupertinoButton(
                       padding: EdgeInsets.zero,
-                      onPressed: () => setState(
-                          () => _showLyrics = !_showLyrics),
+                      onPressed: () =>
+                          setState(() => _showLyrics = !_showLyrics),
                       child: Icon(
                         _showLyrics
                             ? CupertinoIcons.text_badge_checkmark
@@ -215,12 +215,14 @@ class _IOSPlayerScreenState extends State<IOSPlayerScreen> {
                         isPlaying: _videoController?.value.isPlaying ?? false,
                       )
                     else if (_isLoading)
-                      const CupertinoActivityIndicator(color: CupertinoColors.white)
+                      const CupertinoActivityIndicator(
+                        color: CupertinoColors.white,
+                      )
                     else if (_hasError)
                       _ErrorDisplay(message: _errorMessage ?? 'Unknown error')
                     else
                       _buildVideoView(),
-                    
+
                     // Tap to play/pause
                     if (!_isLoading && !_hasError)
                       Positioned.fill(
@@ -230,7 +232,7 @@ class _IOSPlayerScreenState extends State<IOSPlayerScreen> {
                           child: const SizedBox.expand(),
                         ),
                       ),
-                    
+
                     // Play/Pause overlay
                     if (!_isLoading && !_hasError && _showControls && !_isMp3)
                       AnimatedOpacity(
@@ -252,7 +254,7 @@ class _IOSPlayerScreenState extends State<IOSPlayerScreen> {
                           ),
                         ),
                       ),
-                    
+
                     // Subtitle overlay
                     if (!_isLoading && _subtitles.isNotEmpty)
                       Positioned(
@@ -268,7 +270,7 @@ class _IOSPlayerScreenState extends State<IOSPlayerScreen> {
                 ),
               ),
             ),
-            
+
             // Lyrics panel
             if (_showLyrics && _subtitles.isNotEmpty)
               _LyricsPanel(
@@ -279,7 +281,7 @@ class _IOSPlayerScreenState extends State<IOSPlayerScreen> {
                   setState(() => _showControls = true);
                 },
               ),
-            
+
             // Controls
             if (!_isLoading && !_hasError && !_isMp3)
               _VideoControls(
@@ -288,8 +290,18 @@ class _IOSPlayerScreenState extends State<IOSPlayerScreen> {
                 isPlaying: _videoController?.value.isPlaying ?? false,
                 onPlayPause: _togglePlay,
                 onSeek: _seekTo,
-                onSkipBack: () => _seekTo((_position - const Duration(seconds: 10)).clamp(Duration.zero, _duration)),
-                onSkipForward: () => _seekTo((_position + const Duration(seconds: 10)).clamp(Duration.zero, _duration)),
+                onSkipBack: () => _seekTo(
+                  (_position - const Duration(seconds: 10)).clamp(
+                    Duration.zero,
+                    _duration,
+                  ),
+                ),
+                onSkipForward: () => _seekTo(
+                  (_position + const Duration(seconds: 10)).clamp(
+                    Duration.zero,
+                    _duration,
+                  ),
+                ),
                 formatDuration: _formatDuration,
               ),
           ],
@@ -312,10 +324,7 @@ class _IOSPlayerScreenState extends State<IOSPlayerScreen> {
 }
 
 class _AudioDisplay extends StatelessWidget {
-  const _AudioDisplay({
-    required this.fileName,
-    required this.isPlaying,
-  });
+  const _AudioDisplay({required this.fileName, required this.isPlaying});
 
   final String fileName;
   final bool isPlaying;
@@ -400,22 +409,21 @@ class _ErrorDisplay extends StatelessWidget {
 }
 
 class _SubtitleOverlay extends StatelessWidget {
-  const _SubtitleOverlay({
-    required this.subtitles,
-    required this.currentIndex,
-  });
+  const _SubtitleOverlay({required this.subtitles, required this.currentIndex});
 
   final List<SubtitleEntry> subtitles;
   final int? currentIndex;
 
   @override
   Widget build(BuildContext context) {
-    if (currentIndex == null || currentIndex! < 0 || currentIndex! >= subtitles.length) {
+    if (currentIndex == null ||
+        currentIndex! < 0 ||
+        currentIndex! >= subtitles.length) {
       return const SizedBox.shrink();
     }
-    
+
     final entry = subtitles[currentIndex!];
-    
+
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       decoration: BoxDecoration(
@@ -480,7 +488,9 @@ class _LyricsPanel extends StatelessWidget {
                 ),
                 const Spacer(),
                 Text(
-                  subtitles.isEmpty ? '' : '${currentIndex! + 1} / ${subtitles.length}',
+                  subtitles.isEmpty
+                      ? ''
+                      : '${currentIndex! + 1} / ${subtitles.length}',
                   style: TextStyle(
                     color: CupertinoColors.white.withValues(alpha: 0.6),
                     fontSize: 12,
@@ -496,17 +506,26 @@ class _LyricsPanel extends StatelessWidget {
               itemBuilder: (context, index) {
                 final entry = subtitles[index];
                 final isActive = index == currentIndex;
-                
+
                 return GestureDetector(
                   onTap: () => onTap(entry),
                   child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                    color: isActive ? CupertinoColors.systemPink.withValues(alpha: 0.2) : null,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 8,
+                    ),
+                    color: isActive
+                        ? CupertinoColors.systemPink.withValues(alpha: 0.2)
+                        : null,
                     child: Text(
                       entry.text,
                       style: TextStyle(
-                        color: isActive ? CupertinoColors.white : CupertinoColors.systemGrey,
-                        fontWeight: isActive ? FontWeight.w600 : FontWeight.normal,
+                        color: isActive
+                            ? CupertinoColors.white
+                            : CupertinoColors.systemGrey,
+                        fontWeight: isActive
+                            ? FontWeight.w600
+                            : FontWeight.normal,
                       ),
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
@@ -554,7 +573,10 @@ class _VideoControls extends StatelessWidget {
           // Progress bar - use CupertinoSlider for iOS native look
           CupertinoSlider(
             value: duration.inMilliseconds > 0
-                ? (position.inMilliseconds / duration.inMilliseconds).clamp(0.0, 1.0)
+                ? (position.inMilliseconds / duration.inMilliseconds).clamp(
+                    0.0,
+                    1.0,
+                  )
                 : 0.0,
             activeColor: CupertinoColors.systemPink,
             onChanged: (value) {
@@ -564,7 +586,7 @@ class _VideoControls extends StatelessWidget {
               onSeek(newPosition);
             },
           ),
-          
+
           // Time and controls
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -600,7 +622,9 @@ class _VideoControls extends StatelessWidget {
                         shape: BoxShape.circle,
                       ),
                       child: Icon(
-                        isPlaying ? CupertinoIcons.pause_fill : CupertinoIcons.play_fill,
+                        isPlaying
+                            ? CupertinoIcons.pause_fill
+                            : CupertinoIcons.play_fill,
                         color: CupertinoColors.white,
                         size: 28,
                       ),

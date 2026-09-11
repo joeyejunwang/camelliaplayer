@@ -204,8 +204,9 @@ class PlaybackManager extends ChangeNotifier {
     }
     if (_showSubtitleTrack) {
       final tracks = player.state.tracks;
-      final firstSub =
-          tracks.subtitle.isNotEmpty ? tracks.subtitle.first : null;
+      final firstSub = tracks.subtitle.isNotEmpty
+          ? tracks.subtitle.first
+          : null;
       if (firstSub != null) player.setSubtitleTrack(firstSub);
     } else {
       player.setSubtitleTrack(SubtitleTrack('no', null, null));

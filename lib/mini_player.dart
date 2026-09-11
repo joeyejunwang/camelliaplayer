@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 import 'package:record/record.dart';
 
 import 'playback_manager.dart';
+
 class _CircleProgress extends StatelessWidget {
   const _CircleProgress({
     required this.progress,
@@ -108,10 +109,10 @@ class _VolumeSlider extends StatelessWidget {
             volume == 0
                 ? Icons.volume_off
                 : volume < 0.4
-                    ? Icons.volume_mute
-                    : volume < 0.75
-                        ? Icons.volume_down
-                        : Icons.volume_up,
+                ? Icons.volume_mute
+                : volume < 0.75
+                ? Icons.volume_down
+                : Icons.volume_up,
             color: theme.colorScheme.onSurfaceVariant,
             size: 20,
           ),
@@ -128,10 +129,7 @@ class _VolumeSlider extends StatelessWidget {
                 thumbColor: theme.colorScheme.primary,
                 overlayColor: theme.colorScheme.primary.withValues(alpha: 0.12),
               ),
-              child: Slider(
-                value: volume,
-                onChanged: onChanged,
-              ),
+              child: Slider(value: volume, onChanged: onChanged),
             ),
           ),
         ],
@@ -149,7 +147,8 @@ class _VoiceRecorder extends StatefulWidget {
   State<_VoiceRecorder> createState() => _VoiceRecorderState();
 }
 
-class _VoiceRecorderState extends State<_VoiceRecorder> with SingleTickerProviderStateMixin {
+class _VoiceRecorderState extends State<_VoiceRecorder>
+    with SingleTickerProviderStateMixin {
   final AudioRecorder _recorder = AudioRecorder();
   bool _isRecording = false;
   Amplitude _amplitude = Amplitude(current: -160.0, max: -160.0);
@@ -171,14 +170,20 @@ class _VoiceRecorderState extends State<_VoiceRecorder> with SingleTickerProvide
     } else {
       if (!await _recorder.hasPermission()) return;
       await _recorder.start(
-        const RecordConfig(encoder: AudioEncoder.aacLc, sampleRate: 44100, bitRate: 128000),
+        const RecordConfig(
+          encoder: AudioEncoder.aacLc,
+          sampleRate: 44100,
+          bitRate: 128000,
+        ),
         path: '${DateTime.now().millisecondsSinceEpoch}.m4a',
       );
       setState(() {
         _isRecording = true;
         _startTime = DateTime.now();
       });
-      _amplitudeTimer = Timer.periodic(const Duration(milliseconds: 80), (_) async {
+      _amplitudeTimer = Timer.periodic(const Duration(milliseconds: 80), (
+        _,
+      ) async {
         if (!mounted || !_isRecording) return;
         final amp = await _recorder.getAmplitude();
         if (mounted) setState(() => _amplitude = amp);
@@ -226,7 +231,10 @@ class _VoiceRecorderState extends State<_VoiceRecorder> with SingleTickerProvide
                 height: 28,
                 margin: const EdgeInsets.only(right: 4),
                 child: CustomPaint(
-                  painter: _WaveformPainter(amplitude: norm, color: theme.colorScheme.error),
+                  painter: _WaveformPainter(
+                    amplitude: norm,
+                    color: theme.colorScheme.error,
+                  ),
                   size: const Size(48, 28),
                 ),
               ),
@@ -252,8 +260,18 @@ class _VoiceRecorderState extends State<_VoiceRecorder> with SingleTickerProvide
                   child: AnimatedSwitcher(
                     duration: const Duration(milliseconds: 200),
                     child: _isRecording
-                        ? Icon(Icons.stop_rounded, key: const ValueKey('stop'), size: 16, color: theme.colorScheme.onError)
-                        : Icon(Icons.mic_rounded, key: const ValueKey('mic'), size: 16, color: theme.colorScheme.onSurfaceVariant),
+                        ? Icon(
+                            Icons.stop_rounded,
+                            key: const ValueKey('stop'),
+                            size: 16,
+                            color: theme.colorScheme.onError,
+                          )
+                        : Icon(
+                            Icons.mic_rounded,
+                            key: const ValueKey('mic'),
+                            size: 16,
+                            color: theme.colorScheme.onSurfaceVariant,
+                          ),
                   ),
                 ),
               ),
@@ -279,19 +297,26 @@ class _WaveformPainter extends CustomPainter {
 
     for (var i = 0; i < barCount; i++) {
       final phase = i / barCount;
-      final h = maxH * (0.2 + amplitude * (0.5 + 0.5 * math.sin(phase * math.pi)) * (0.6 + 0.4 * rng.nextDouble()));
+      final h =
+          maxH *
+          (0.2 +
+              amplitude *
+                  (0.5 + 0.5 * math.sin(phase * math.pi)) *
+                  (0.6 + 0.4 * rng.nextDouble()));
       final x = i * (barW * 2);
       final y = (maxH - h) / 2;
       canvas.drawRRect(
-        RRect.fromRectAndRadius(Rect.fromLTWH(x, y, barW, h), Radius.circular(barW / 2)),
+        RRect.fromRectAndRadius(
+          Rect.fromLTWH(x, y, barW, h),
+          Radius.circular(barW / 2),
+        ),
         Paint()..color = color.withValues(alpha: 0.4 + 0.6 * amplitude),
       );
     }
   }
 
   @override
-  bool shouldRepaint(_WaveformPainter old) =>
-      old.amplitude != amplitude;
+  bool shouldRepaint(_WaveformPainter old) => old.amplitude != amplitude;
 }
 
 // (Keyboard shortcuts are now declared in player_screen.dart using
@@ -367,20 +392,20 @@ class _LyricRulerPainter extends CustomPainter {
       ..color = theme.colorScheme.primary
       ..strokeWidth = 2;
 
-    final inactivePaint = Paint()
-      ..color = theme.colorScheme.outline;
-
     final tickCount = totalCount > 50 ? 10 : (totalCount > 20 ? 5 : 1);
     final step = totalCount > tickCount ? (totalCount / tickCount).floor() : 1;
 
     // Draw one tick per lyric line (i = 0 .. totalCount-1), so label "500"
     // sits exactly above subtitles[499].
     for (int i = 0; i < totalCount; i++) {
-      final x = 12 + (i / (totalCount - 1).clamp(1, totalCount)) * (size.width - 24);
+      final x =
+          12 + (i / (totalCount - 1).clamp(1, totalCount)) * (size.width - 24);
       final isActive = i <= currentIndex;
       final isMajor = (i % step == 0) || (i == totalCount - 1);
 
-      paint.color = isActive ? theme.colorScheme.primary : theme.colorScheme.outlineVariant;
+      paint.color = isActive
+          ? theme.colorScheme.primary
+          : theme.colorScheme.outlineVariant;
       paint.strokeWidth = isActive ? 2 : (isMajor ? 1.5 : 1);
 
       final tickHeight = 8.0;
@@ -396,7 +421,9 @@ class _LyricRulerPainter extends CustomPainter {
             text: '${i + 1}',
             style: TextStyle(
               fontSize: 8,
-              color: isActive ? theme.colorScheme.primary : theme.colorScheme.outline,
+              color: isActive
+                  ? theme.colorScheme.primary
+                  : theme.colorScheme.outline,
             ),
           ),
           textDirection: TextDirection.ltr,
@@ -407,7 +434,10 @@ class _LyricRulerPainter extends CustomPainter {
     }
 
     if (currentIndex >= 0) {
-      final progressX = 12 + (currentIndex / (totalCount - 1).clamp(1, totalCount)) * (size.width - 24);
+      final progressX =
+          12 +
+          (currentIndex / (totalCount - 1).clamp(1, totalCount)) *
+              (size.width - 24);
       // Draw a thick progress line that fills the ticks up to the current lyric.
       canvas.drawLine(
         Offset(12, size.height - 4),
@@ -459,173 +489,183 @@ class MiniPlayerBar extends StatelessWidget {
               ),
               child: Row(
                 children: [
-                // ── Progress ring ───────────────────────────────────────────
-                const SizedBox(width: 20),
+                  // ── Progress ring ───────────────────────────────────────────
+                  const SizedBox(width: 20),
 
-                SizedBox(
-                  width: 44,
-                  height: 44,
-                  child: Stack(
-                    alignment: Alignment.center,
-                    children: [
-                      if (hasMedia)
-                        _CircleProgress(
-                          progress: progress,
-                          color: theme.colorScheme.primary,
-                          backgroundColor:
-                              theme.colorScheme.surfaceContainerHighest,
-                          strokeWidth: 3,
-                          size: 44,
-                        )
-                      else
-                        Container(
-                          width: 44,
-                          height: 44,
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            color: theme.colorScheme.surfaceContainerHighest,
+                  SizedBox(
+                    width: 44,
+                    height: 44,
+                    child: Stack(
+                      alignment: Alignment.center,
+                      children: [
+                        if (hasMedia)
+                          _CircleProgress(
+                            progress: progress,
+                            color: theme.colorScheme.primary,
+                            backgroundColor:
+                                theme.colorScheme.surfaceContainerHighest,
+                            strokeWidth: 3,
+                            size: 44,
+                          )
+                        else
+                          Container(
+                            width: 44,
+                            height: 44,
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              color: theme.colorScheme.surfaceContainerHighest,
+                            ),
+                          ),
+                        GestureDetector(
+                          onTap: hasMedia ? () => pm.togglePlay() : null,
+                          child: Icon(
+                            hasMedia
+                                ? (isPlaying
+                                      ? Icons.pause_rounded
+                                      : Icons.play_arrow_rounded)
+                                : Icons.music_note_outlined,
+                            color: hasMedia
+                                ? theme.colorScheme.primary
+                                : theme.colorScheme.onSurfaceVariant,
+                            size: 28,
                           ),
                         ),
-                      GestureDetector(
-                        onTap: hasMedia ? () => pm.togglePlay() : null,
-                        child: Icon(
-                          hasMedia
-                              ? (isPlaying
-                                  ? Icons.pause_rounded
-                                  : Icons.play_arrow_rounded)
-                              : Icons.music_note_outlined,
-                          color: hasMedia
-                              ? theme.colorScheme.primary
-                              : theme.colorScheme.onSurfaceVariant,
-                          size: 28,
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+
+                  // ── Transport controls: skip-back / rewind / fast-forward / skip-next ──
+                  if (hasMedia)
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        _MiniBtn(
+                          icon: Icons.skip_previous_rounded,
+                          onPressed: () => pm.playFirstLyric(),
+                          tooltip: 'First lyric ←',
                         ),
-                      ),
-                    ],
+                        const SizedBox(width: 4),
+                        _MiniBtn(
+                          icon: Icons.fast_rewind_rounded,
+                          onPressed: () => pm.playPreviousLyric(),
+                          tooltip: 'Previous lyric ←',
+                        ),
+                        const SizedBox(width: 4),
+                        _MiniBtn(
+                          icon: Icons.fast_forward_rounded,
+                          onPressed: () => pm.playNextLyric(),
+                          tooltip: 'Next lyric →',
+                        ),
+                        const SizedBox(width: 4),
+                        _MiniBtn(
+                          icon: Icons.skip_next_rounded,
+                          onPressed: () => pm.playLastLyric(),
+                          tooltip: 'Last lyric End',
+                        ),
+                        const SizedBox(width: 4),
+                      ],
+                    )
+                  else
+                    const SizedBox(width: 152),
+
+                  // ── Loop switch (off = play through every lyric sequentially; on = loop the current lyric) ──
+                  _MiniBtn(
+                    icon: pm.repeatLyric
+                        ? Icons.repeat_on_rounded
+                        : Icons.repeat_rounded,
+                    onPressed: hasMedia ? () => pm.toggleRepeatLyric() : null,
+                    tooltip: pm.repeatLyric
+                        ? 'Loop current lyric (R) — click to play all sequentially'
+                        : 'Play all lyrics sequentially (R) — click to loop current lyric',
+                    isActive: pm.repeatLyric,
                   ),
-                ),
-                const SizedBox(width: 16),
+                  const SizedBox(width: 4),
 
-                // ── Transport controls: skip-back / rewind / fast-forward / skip-next ──
-                if (hasMedia)
-                  Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      _MiniBtn(
-                        icon: Icons.skip_previous_rounded,
-                        onPressed: () => pm.playFirstLyric(),
-                        tooltip: 'First lyric ←',
-                      ),
-                      const SizedBox(width: 4),
-                      _MiniBtn(
-                        icon: Icons.fast_rewind_rounded,
-                        onPressed: () => pm.playPreviousLyric(),
-                        tooltip: 'Previous lyric ←',
-                      ),
-                      const SizedBox(width: 4),
-                      _MiniBtn(
-                        icon: Icons.fast_forward_rounded,
-                        onPressed: () => pm.playNextLyric(),
-                        tooltip: 'Next lyric →',
-                      ),
-                      const SizedBox(width: 4),
-                      _MiniBtn(
-                        icon: Icons.skip_next_rounded,
-                        onPressed: () => pm.playLastLyric(),
-                        tooltip: 'Last lyric End',
-                      ),
-                      const SizedBox(width: 4),
-                    ],
-                  )
-                else
-                  const SizedBox(width: 152),
+                  // ── Subtitle track toggle ──
+                  _MiniBtn(
+                    icon: pm.showSubtitleTrack
+                        ? Icons.closed_caption_rounded
+                        : Icons.closed_caption_off_rounded,
+                    onPressed: hasMedia
+                        ? () => pm.toggleShowSubtitleTrack()
+                        : null,
+                    tooltip: pm.showSubtitleTrack
+                        ? 'Subtitles on (S) — click to turn off'
+                        : 'Subtitles off (S) — click to enable',
+                    isActive: pm.showSubtitleTrack,
+                  ),
+                  const SizedBox(width: 4),
 
-                // ── Loop switch (off = play through every lyric sequentially; on = loop the current lyric) ──
-                _MiniBtn(
-                  icon: pm.repeatLyric
-                      ? Icons.repeat_on_rounded
-                      : Icons.repeat_rounded,
-                  onPressed: hasMedia ? () => pm.toggleRepeatLyric() : null,
-                  tooltip: pm.repeatLyric
-                      ? 'Loop current lyric (R) — click to play all sequentially'
-                      : 'Play all lyrics sequentially (R) — click to loop current lyric',
-                  isActive: pm.repeatLyric,
-                ),
-                const SizedBox(width: 4),
-
-                // ── Subtitle track toggle ──
-                _MiniBtn(
-                  icon: pm.showSubtitleTrack
-                      ? Icons.closed_caption_rounded
-                      : Icons.closed_caption_off_rounded,
-                  onPressed: hasMedia ? () => pm.toggleShowSubtitleTrack() : null,
-                  tooltip: pm.showSubtitleTrack
-                      ? 'Subtitles on (S) — click to turn off'
-                      : 'Subtitles off (S) — click to enable',
-                  isActive: pm.showSubtitleTrack,
-                ),
-                const SizedBox(width: 4),
-
-                // ── Lyric visibility toggle ──
-                _MiniBtn(
-                  icon: pm.showLyric
-                      ? Icons.visibility_rounded
-                      : Icons.visibility_off_rounded,
-                  onPressed: hasMedia ? () => pm.toggleShowLyric() : null,
-                  tooltip: pm.showLyric
-                      ? 'Show lyric on (L) — click to turn off'
-                      : 'Show lyric off (L) — click to show current lyric',
-                  isActive: pm.showLyric,
-                ),
-
-                const Spacer(),
-
-                // ── Lyric progress ruler ──────────────────────────────────────────
-                if (hasMedia && pm.hasSubtitles)
-                  SizedBox(
-                    width: 600,
-                    height: 24,
-                    child: LayoutBuilder(
-                      builder: (context, constraints) {
-                        final w = constraints.maxWidth;
-                        return CustomPaint(
-                          painter: _LyricRulerPainter(
-                            totalCount: pm.subtitles.length,
-                            currentIndex: pm.currentLyricIndex,
-                            theme: theme,
-                          ),
-                          child: GestureDetector(
-                            onTapDown: (details) {
-                              final box = context.findRenderObject() as RenderBox;
-                              final local = box.globalToLocal(details.globalPosition);
-                              final ratio = ((local.dx - 12) / (w - 24)).clamp(0.0, 1.0);
-                              final target = (ratio * (pm.subtitles.length - 1)).round().clamp(0, pm.subtitles.length - 1);
-                              if (target >= 0 && target < pm.subtitles.length) {
-                                final entry = pm.subtitles[target];
-                                pm.player.seek(entry.start);
-                              }
-                            },
-                          ),
-                        );
-                      },
-                    ),
+                  // ── Lyric visibility toggle ──
+                  _MiniBtn(
+                    icon: pm.showLyric
+                        ? Icons.visibility_rounded
+                        : Icons.visibility_off_rounded,
+                    onPressed: hasMedia ? () => pm.toggleShowLyric() : null,
+                    tooltip: pm.showLyric
+                        ? 'Show lyric on (L) — click to turn off'
+                        : 'Show lyric off (L) — click to show current lyric',
+                    isActive: pm.showLyric,
                   ),
 
-                const Spacer(),
+                  const Spacer(),
 
-                // ── Volume slider ────────────────────────────────────────────
-                if (hasMedia)
-                  SizedBox(
-                    width: 100,
-                    child: _VolumeSlider(
-                      volume: vol,
-                      onChanged: (v) => pm.setVolume(v),
+                  // ── Lyric progress ruler ──────────────────────────────────────────
+                  if (hasMedia && pm.hasSubtitles)
+                    SizedBox(
+                      width: 600,
+                      height: 24,
+                      child: LayoutBuilder(
+                        builder: (context, constraints) {
+                          final w = constraints.maxWidth;
+                          return CustomPaint(
+                            painter: _LyricRulerPainter(
+                              totalCount: pm.subtitles.length,
+                              currentIndex: pm.currentLyricIndex,
+                              theme: theme,
+                            ),
+                            child: GestureDetector(
+                              onTapDown: (details) {
+                                final box =
+                                    context.findRenderObject() as RenderBox;
+                                final local = box.globalToLocal(
+                                  details.globalPosition,
+                                );
+                                final ratio = ((local.dx - 12) / (w - 24))
+                                    .clamp(0.0, 1.0);
+                                final target =
+                                    (ratio * (pm.subtitles.length - 1))
+                                        .round()
+                                        .clamp(0, pm.subtitles.length - 1);
+                                if (target >= 0 &&
+                                    target < pm.subtitles.length) {
+                                  final entry = pm.subtitles[target];
+                                  pm.player.seek(entry.start);
+                                }
+                              },
+                            ),
+                          );
+                        },
+                      ),
                     ),
-                  )
-                else
-                  const SizedBox(width: 100),
-              ],
-            ),
-          );
+
+                  const Spacer(),
+
+                  // ── Volume slider ────────────────────────────────────────────
+                  if (hasMedia)
+                    SizedBox(
+                      width: 100,
+                      child: _VolumeSlider(
+                        volume: vol,
+                        onChanged: (v) => pm.setVolume(v),
+                      ),
+                    )
+                  else
+                    const SizedBox(width: 100),
+                ],
+              ),
+            );
           },
         ),
       ),

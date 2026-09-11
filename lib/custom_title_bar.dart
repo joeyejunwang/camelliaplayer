@@ -61,9 +61,7 @@ class _CustomTitleBarState extends State<CustomTitleBar> with WindowListener {
     final isDark = theme.brightness == Brightness.dark;
 
     // Colours per theme brightness
-    final bgColor = isDark
-        ? const Color(0xFF1C1B1F)
-        : const Color(0xFFF6F2F4);
+    final bgColor = isDark ? const Color(0xFF1C1B1F) : const Color(0xFFF6F2F4);
     final textColor = isDark ? Colors.white : const Color(0xFF1C1B1F);
     final btnHover = isDark
         ? Colors.white.withValues(alpha: 0.08)
@@ -107,9 +105,7 @@ class _CustomTitleBarState extends State<CustomTitleBar> with WindowListener {
               onTap: () => windowManager.minimize(),
             ),
             _WindowButton(
-              icon: _isMaximized
-                  ? Icons.filter_none
-                  : Icons.crop_square,
+              icon: _isMaximized ? Icons.filter_none : Icons.crop_square,
               tooltip: _isMaximized ? 'Restore' : 'Maximize',
               hoverColor: btnHover,
               iconColor: textColor,
