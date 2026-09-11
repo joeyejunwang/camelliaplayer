@@ -33,7 +33,7 @@ class _IOSPlayerScreenState extends State<IOSPlayerScreen> {
   String? _errorMessage;
   bool _showLyrics = true;
   bool _showSubtitleOverlay = true;
-  bool _repeatLyric = false;
+  bool _repeatLyric = true;
   bool _automaticSeekPending = false;
   int? _loopLyricIndex;
   int? _lastScrolledIndex;
@@ -54,7 +54,10 @@ class _IOSPlayerScreenState extends State<IOSPlayerScreen> {
   Future<void> _initializePlayer() async {
     try {
       final file = File(widget.videoPath);
-      _videoController = VideoPlayerController.file(file);
+      _videoController = VideoPlayerController.file(
+        file,
+        videoPlayerOptions: VideoPlayerOptions(allowBackgroundPlayback: true),
+      );
       await _videoController!.initialize();
 
       // Load subtitles if available
@@ -67,6 +70,10 @@ class _IOSPlayerScreenState extends State<IOSPlayerScreen> {
             _subtitles = loaded;
             _showLyrics = true;
           });
+          if (loaded.isNotEmpty) {
+            _loopLyricIndex = 0;
+            await _videoController!.seekTo(loaded.first.start);
+          }
         }
       }
 
@@ -147,7 +154,11 @@ class _IOSPlayerScreenState extends State<IOSPlayerScreen> {
         _subtitles = loaded;
         _showLyrics = loaded.isNotEmpty;
         _showSubtitleOverlay = true;
+        _repeatLyric = true;
+        _loopLyricIndex = 0;
       });
+      await _videoController?.seekTo(loaded.first.start);
+      await _videoController?.play();
     } catch (e) {
       if (!mounted) return;
       _showSubtitleError('Failed to load lyrics: $e');
@@ -667,8 +678,17 @@ class _LyricsPanel extends StatelessWidget {
                   ),
                 ),
                 const Spacer(),
+                Text(
+                  subtitles.isEmpty || currentIndex == null
+                      ? ''
+                      : '${currentIndex! + 1} / ${subtitles.length}',
+                  style: TextStyle(
+                    color: CupertinoColors.white.withValues(alpha: 0.6),
+                    fontSize: 12,
+                  ),
+                ),
+                const Spacer(),
                 Container(
-                  color: CupertinoColors.black,
                   padding: const EdgeInsets.symmetric(
                     horizontal: 12,
                     vertical: 7,
@@ -679,16 +699,6 @@ class _LyricsPanel extends StatelessWidget {
                       color: CupertinoColors.white.withValues(alpha: 0.72),
                       fontSize: 12,
                     ),
-                  ),
-                ),
-                const Spacer(),
-                Text(
-                  subtitles.isEmpty || currentIndex == null
-                      ? ''
-                      : '${currentIndex! + 1} / ${subtitles.length}',
-                  style: TextStyle(
-                    color: CupertinoColors.white.withValues(alpha: 0.6),
-                    fontSize: 12,
                   ),
                 ),
               ],
@@ -779,6 +789,14 @@ class _IOSPlayerControls extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    void selectLyric(double normalizedPosition) {
+      final index = subtitles.length == 1
+          ? 0
+          : (normalizedPosition.clamp(0.0, 1.0) * (subtitles.length - 1))
+                .round();
+      onLyricChanged(index);
+    }
+
     return Container(
       padding: const EdgeInsets.fromLTRB(12, 4, 12, 8),
       color: CupertinoColors.black,
@@ -797,16 +815,27 @@ class _IOSPlayerControls extends StatelessWidget {
                   ),
                 ),
                 Expanded(
-                  child: CupertinoSlider(
-                    value: subtitles.length == 1 || currentLyricIndex < 0
-                        ? 0
-                        : currentLyricIndex / (subtitles.length - 1),
-                    activeColor: CupertinoColors.systemPink,
-                    onChanged: (value) {
-                      final index = subtitles.length == 1
-                          ? 0
-                          : (value * (subtitles.length - 1)).round();
-                      onLyricChanged(index);
+                  child: LayoutBuilder(
+                    builder: (context, constraints) {
+                      const trackInset = 12.0;
+                      final trackWidth = constraints.maxWidth - trackInset * 2;
+                      return GestureDetector(
+                        behavior: HitTestBehavior.opaque,
+                        onTapUp: (details) {
+                          final position = trackWidth <= 0
+                              ? 0.0
+                              : (details.localPosition.dx - trackInset) /
+                                    trackWidth;
+                          selectLyric(position);
+                        },
+                        child: CupertinoSlider(
+                          value: subtitles.length == 1 || currentLyricIndex < 0
+                              ? 0
+                              : currentLyricIndex / (subtitles.length - 1),
+                          activeColor: CupertinoColors.systemPink,
+                          onChanged: selectLyric,
+                        ),
+                      );
                     },
                   ),
                 ),
