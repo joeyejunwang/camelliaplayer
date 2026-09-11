@@ -97,7 +97,7 @@ lesson.mp4
 lesson.srt
 ```
 
-Recognized companion extensions are `.srt`, `.vtt`, `.ass`, and `.ssa`. On iOS, files selected from another app can be exposed through a temporary location, so use the subtitle button in the player if the companion file is not found automatically.
+Recognized companion extensions are `.srt`, `.vtt`, `.ass`, and `.ssa`. In the iOS Documents browser, same-name lyrics are detected automatically. When importing from the iOS Files picker, select the media file and its same-name lyric file together because iOS may expose each selected document through a temporary location. You can also use the subtitle button in the player to choose lyrics later.
 
 ## Keyboard shortcuts (Windows)
 

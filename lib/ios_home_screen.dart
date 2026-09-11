@@ -131,7 +131,7 @@ class _IOSHomeScreenState extends State<IOSHomeScreen> {
     }
   }
 
-  Future<void> _openFile(String path) async {
+  Future<void> _openFile(String path, {String? selectedSubtitlePath}) async {
     final file = File(path);
     if (!await file.exists()) {
       if (!mounted) return;
@@ -140,16 +140,36 @@ class _IOSHomeScreenState extends State<IOSHomeScreen> {
     }
 
     final displayName = p.basename(path);
-    final baseName = p.withoutExtension(path);
+    final mediaBaseName = p.basenameWithoutExtension(path).toLowerCase();
 
-    // Find subtitle file
-    File? foundSubtitle;
-    for (final ext in _subtitleExts) {
-      final subPath = '$baseName.$ext';
-      final subFile = File(subPath);
-      if (await subFile.exists()) {
-        foundSubtitle = subFile;
-        break;
+    // A Files-picker selection is passed explicitly because iOS can copy each
+    // selected document into a separate temporary location. Files opened from
+    // the app's Documents browser can be matched by enumerating their folder.
+    File? foundSubtitle = selectedSubtitlePath == null
+        ? null
+        : File(selectedSubtitlePath);
+    if (foundSubtitle != null && !await foundSubtitle.exists()) {
+      foundSubtitle = null;
+    }
+    if (foundSubtitle == null) {
+      try {
+        await for (final entity in File(path).parent.list()) {
+          if (entity is! File) continue;
+          final extension = p
+              .extension(entity.path)
+              .toLowerCase()
+              .replaceFirst('.', '');
+          final candidateBase = p
+              .basenameWithoutExtension(entity.path)
+              .toLowerCase();
+          if (_subtitleExts.contains(extension) &&
+              candidateBase == mediaBaseName) {
+            foundSubtitle = entity;
+            break;
+          }
+        }
+      } catch (_) {
+        // External Files locations may only grant access to selected documents.
       }
     }
 
@@ -173,13 +193,65 @@ class _IOSHomeScreenState extends State<IOSHomeScreen> {
 
   Future<void> _pickFile() async {
     final result = await FilePicker.platform.pickFiles(
-      type: FileType.custom,
-      allowedExtensions: _supportedExts,
+      // iOS does not consistently register subtitle extensions such as SRT
+      // as UTTypes. Using FileType.custom can therefore grey them out.
+      // Show all documents and validate the selected extensions below.
+      type: FileType.any,
+      allowMultiple: true,
     );
 
-    if (result != null && result.files.single.path != null) {
-      await _openFile(result.files.single.path!);
+    if (result == null) return;
+    final pickedPaths = result.files
+        .map((file) => file.path)
+        .whereType<String>()
+        .toList();
+    if (pickedPaths.length > 2) {
+      if (mounted) {
+        _showError(
+          'Select no more than two files: one media file and one lyric file.',
+        );
+      }
+      return;
     }
+
+    final mediaPaths = pickedPaths.where((path) {
+      final extension = p.extension(path).toLowerCase().replaceFirst('.', '');
+      return _supportedExts.contains(extension);
+    }).toList();
+    final subtitlePaths = pickedPaths.where((path) {
+      final extension = p.extension(path).toLowerCase().replaceFirst('.', '');
+      return _subtitleExts.contains(extension);
+    }).toList();
+
+    if (mediaPaths.length != 1) {
+      if (mounted) {
+        _showError('Select exactly one audio or video file.');
+      }
+      return;
+    }
+
+    final mediaPath = mediaPaths.single;
+    final mediaBase = p.basenameWithoutExtension(mediaPath).toLowerCase();
+    final subtitlePath = subtitlePaths.isEmpty ? null : subtitlePaths.single;
+    if (subtitlePath != null &&
+        p.basenameWithoutExtension(subtitlePath).toLowerCase() != mediaBase) {
+      if (mounted) {
+        _showError(
+          'The media and lyric files must have the same name, such as video.mp4 and video.srt.',
+        );
+      }
+      return;
+    }
+    if (pickedPaths.length == 2 && subtitlePath == null) {
+      if (mounted) {
+        _showError(
+          'The second file must be an SRT, VTT, ASS, or SSA lyric file.',
+        );
+      }
+      return;
+    }
+
+    await _openFile(mediaPath, selectedSubtitlePath: subtitlePath);
   }
 
   void _navigateToDirectory(String path) {
@@ -430,7 +502,8 @@ class _EmptyState extends StatelessWidget {
           ),
           const SizedBox(height: 8),
           Text(
-            'Add MP4 files to Documents folder\nor pick a file to play',
+            'Add media and same-name lyrics to Documents,\n'
+            'or select both files together from Files',
             textAlign: TextAlign.center,
             style: TextStyle(
               color: CupertinoColors.secondaryLabel.resolveFrom(context),
@@ -439,7 +512,7 @@ class _EmptyState extends StatelessWidget {
           const SizedBox(height: 24),
           CupertinoButton.filled(
             onPressed: onPickFile,
-            child: const Text('Pick File'),
+            child: const Text('Pick Media + Lyrics'),
           ),
         ],
       ),
