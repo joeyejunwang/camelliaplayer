@@ -11,13 +11,15 @@
 
 ## Promotional Text
 
-Practice videos one lyric at a time with automatic subtitles, precise navigation, and repeat playback.
+Practice with local videos one lyric at a time. Automatically load matching subtitles, repeat any line, jump precisely, and resume where you stopped.
 
 ## Description
 
-Camellia Player is a focused local media player for learning, practice, and close listening.
+Camellia Player is a focused local media player for language study, performance practice, and close listening.
 
-Open audio or video from Files, add a matching lyric file, and follow every line while the media plays. Repeat the current lyric automatically, jump directly to any line, or continue from your last-played lyric.
+Open audio or video from Files and follow synchronized lyrics or subtitles while it plays. When a subtitle file has the same name as your media, Camellia Player can load it automatically. You can also select a subtitle file manually.
+
+Repeat the current lyric for focused practice, jump directly to any line from the lyric list or slider, and continue from your last-played lyric the next time you open the file. Lyrics can appear over the video and in a scrollable list, while background audio lets you keep listening when using another app.
 
 Features:
 
@@ -35,7 +37,7 @@ Camellia Player has no advertising, analytics, tracking, or account requirement.
 
 ## Keywords
 
-lyrics,subtitles,video,audio,player,practice,repeat,loop,SRT,language,listening
+lyrics,subtitles,SRT,video,audio,player,repeat,loop,practice,language,listening,study
 
 ## URLs
 
