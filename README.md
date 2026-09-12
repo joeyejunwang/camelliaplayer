@@ -22,7 +22,7 @@ Codec availability depends on the operating system and the media libraries it pr
 | Platform | Player and interface |
 | --- | --- |
 | Windows 10/11 (x64) | Material interface, custom window controls, file picker, and drag and drop |
-| iOS 13 or later | Cupertino interface, Files picker, and app Documents browser |
+| iOS 15 or later | Cupertino interface, Files picker, and app Documents browser |
 
 Android, macOS, Linux, and Web are not supported.
 
