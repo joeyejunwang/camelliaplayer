@@ -75,6 +75,11 @@ dependency_overrides:
 
 # The following section is specific to Flutter packages.
 flutter:
+  # Xcode 26.6's bundled iOS SDK currently has no exact-match downloadable
+  # simulator runtime for Swift-package resource compilation. CocoaPods avoids
+  # that toolchain mismatch and remains supported by Flutter for this project.
+  config:
+    enable-swift-package-manager: false
 
   # The following line ensures that the Material Icons font is
   # included with your application, so that you can use the icons in
