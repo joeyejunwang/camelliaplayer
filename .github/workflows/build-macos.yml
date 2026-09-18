@@ -1,0 +1,79 @@
+name: Build macOS
+
+on:
+  push:
+    tags:
+      - '**'
+
+# Grant permission to create releases and modify repository contents
+permissions:
+  contents: write
+
+jobs:
+  build-macos:
+    name: Build macOS (release)
+    # A macOS runner is required because Flutter builds for macOS
+    # using xcodebuild, which only ships with the macOS image.
+    runs-on: macos-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Install Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+          cache: true
+
+      - name: Show Flutter & Dart versions
+        run: |
+          flutter --version
+          dart --version
+
+      - name: Verify Flutter macOS toolchain
+        run: flutter doctor -v
+
+      - name: Get pub dependencies
+        run: flutter pub get
+
+      - name: Analyze project
+        run: flutter analyze --no-fatal-warnings
+
+      - name: Install CocoaPods
+        run: sudo gem install cocoapods --no-document
+
+      - name: Build macOS (release)
+        run: flutter build macos --release
+
+      # Bundle the .app into a zip archive. The .app folder is what
+      # users actually launch, so we ship the whole thing (matching the
+      # Windows workflow which ships the entire build directory).
+      - name: Compress macOS Release
+        run: |
+          ditto -c -k --sequesterRsrc --keepParent \
+            build/macos/Build/Products/Release/Camellia Player.app \
+            camellia-player-macos-release.zip
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: camellia-player-macos-release
+          path: camellia-player-macos-release.zip
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Create GitHub Release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true
+          files: camellia-player-macos-release.zip
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

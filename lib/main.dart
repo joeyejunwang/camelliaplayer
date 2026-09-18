@@ -9,17 +9,17 @@ import 'home_screen.dart';
 import 'ios_home_screen.dart';
 
 /// Main entry point for Camellia Player
-/// Handles the supported Windows and iOS platforms.
+/// Handles the supported Windows, macOS, and iOS platforms.
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // The desktop player and window chrome are Windows-only.
-  if (isWindowsPlatform) {
+  // The desktop player and window chrome are Windows- and macOS-only.
+  if (isWindowsPlatform || isMacOSPlatform) {
     MediaKit.ensureInitialized();
     try {
       await _initDesktopWindow();
     } catch (e) {
-      debugPrint('Windows window initialization failed: $e');
+      debugPrint('Desktop window initialization failed: $e');
     }
   }
 
@@ -58,13 +58,20 @@ bool get isWindowsPlatform {
   return defaultTargetPlatform == TargetPlatform.windows;
 }
 
+/// Determines if the current platform is macOS.
+bool get isMacOSPlatform {
+  if (kIsWeb) return false;
+  return defaultTargetPlatform == TargetPlatform.macOS;
+}
+
 class CamelliaPlayerApp extends StatelessWidget {
   const CamelliaPlayerApp({super.key});
 
   @override
   Widget build(BuildContext context) {
-    // iOS gets its native-style UI. The Material branch is the Windows UI;
-    // keeping it as the fallback also lets widget tests run on a macOS host.
+    // iOS gets its native-style UI. The Material branch is the desktop UI
+    // (Windows and macOS); keeping it as the fallback also lets widget tests
+    // run on a macOS host.
     if (isIOSPlatform) {
       // iOS uses Cupertino design
       return const CupertinoApp(
@@ -78,7 +85,7 @@ class CamelliaPlayerApp extends StatelessWidget {
       );
     }
 
-    // Windows uses Material design.
+    // Windows and macOS use Material design.
     final scheme = ColorScheme.fromSeed(
       seedColor: const Color(0xFFE91E63),
       brightness: Brightness.light,

@@ -40,6 +40,7 @@ dependencies:
   media_kit_video: ^1.2.5
   media_kit_libs_windows_video: 1.0.11
   media_kit_libs_ios_video: ^1.1.4  # iOS support for media_kit
+  media_kit_libs_macos_video: ^1.1.4  # macOS support for media_kit
   file_selector: ^1.1.0
   cross_file: ^0.3.5+2
   subtitle: ^0.2.0

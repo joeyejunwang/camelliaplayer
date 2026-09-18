@@ -2,7 +2,7 @@
 
 ![Camellia Player screenshot](s1.png)
 
-Camellia Player is a local audio and video player built with Flutter. The supported targets are **Windows desktop** and **iOS only**.
+Camellia Player is a Flutter-based local audio and video player that allows English learners to **repeat lyrics line by line**. The supported targets are **Windows desktop**, **macOS desktop**, and **iOS**.
 
 ## Features
 
@@ -22,9 +22,10 @@ Codec availability depends on the operating system and the media libraries it pr
 | Platform | Player and interface |
 | --- | --- |
 | Windows 10/11 (x64) | Material interface, custom window controls, file picker, and drag and drop |
+| macOS 11 or later (universal/x64/arm64) | Material interface, custom window controls, file picker, and drag and drop |
 | iOS 15 or later | Cupertino interface, Files picker, and app Documents browser |
 
-Android, macOS, Linux, and Web are not supported.
+Android, Linux, and Web are not supported.
 
 ## Requirements
 
@@ -32,6 +33,13 @@ Android, macOS, Linux, and Web are not supported.
 
 - Flutter SDK compatible with Dart 3.11 or later
 - Visual Studio 2022 with the **Desktop development with C++** workload
+
+### macOS
+
+- macOS 11 (Big Sur) or later
+- Xcode with the command-line tools (`xcode-select --install`)
+- Flutter SDK compatible with Dart 3.11 or later
+- CocoaPods
 
 ### iOS
 
@@ -55,6 +63,12 @@ Windows:
 flutter run -d windows
 ```
 
+macOS (must be built on a Mac):
+
+```console
+flutter run -d macos
+```
+
 iOS Simulator (replace the device name with one installed locally):
 
 ```console
@@ -73,6 +87,16 @@ flutter build windows --release
 ```
 
 The distributable files are written to `build/windows/x64/runner/Release/`. Ship the entire folder, not only the `.exe`, because the application also needs its DLLs and data directory.
+
+macOS (must be built on a Mac):
+
+```console
+flutter build macos --release
+```
+
+The `.app` bundle is written to `build/macos/Build/Products/Release/`. To distribute, ship the entire `Camellia Player.app` (drag it into `/Applications`, or zip and notarize it for wider distribution).
+
+> **Note:** After running `flutter create --platforms=macos .` for the first time, open `macos/Runner/Configs/AppInfo.xcconfig` and set `PRODUCT_NAME = Camellia Player` so the output path matches what `build-macos.yml` expects (`build/macos/Build/Products/Release/Camellia Player.app`).
 
 iOS Simulator build (no signing required):
 
@@ -134,12 +158,40 @@ lib/
   subtitle_loader.dart     SRT, VTT, ASS, and SSA parsing
   last_played.dart         Last-played persistence
 windows/                   Windows runner
+macos/                     macOS runner and Xcode project
 ios/                       iOS runner and Xcode project
 ```
 
 ## Troubleshooting
 
 If Windows reports that Visual Studio is missing, install the **Desktop development with C++** workload and run `flutter doctor -v` again.
+
+### macOS microphone / voice recording
+
+If the in-app voice recorder (the `V` shortcut in the bottom mini-player)
+fails on macOS, the app needs microphone permission. Add the following
+key to `macos/Runner/Info.plist`:
+
+```xml
+<key>NSMicrophoneUsageDescription</key>
+<string>Camellia Player needs the microphone to record short voice clips from the player controls.</string>
+```
+
+And enable the **Audio Input** capability in the Runner target's
+Signing & Capabilities in Xcode. If you ship a sandboxed build, also
+add `com.apple.security.device.microphone` to the entitlements file.
+
+### CocoaPods on macOS or iOS
+
+```console
+sudo gem install cocoapods
+flutter pub get
+cd macos
+pod install
+cd ..
+```
+
+Always open `macos/Runner.xcworkspace`, not `Runner.xcodeproj`, after CocoaPods has been installed.
 
 If iOS reports that CocoaPods is missing or the pods are stale:
 

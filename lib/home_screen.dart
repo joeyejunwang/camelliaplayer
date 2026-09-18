@@ -236,7 +236,7 @@ class _Header extends StatelessWidget {
               ),
               const SizedBox(height: 4),
               Text(
-                'A simple Flutter audio and video player for Windows.',
+                'A simple Flutter audio and video player for Windows and macOS.',
                 style: theme.textTheme.bodyMedium?.copyWith(
                   color: theme.colorScheme.onSurfaceVariant,
                 ),
