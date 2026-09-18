@@ -487,7 +487,16 @@ class MiniPlayerBar extends StatelessWidget {
                   ),
                 ),
               ),
-              child: Row(
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  // The lyric ruler scales with the overall app width so it
+                  // grows on full-screen windows without becoming a tiny
+                  // strip on smaller ones. 50% of the row reads well across
+                  // window sizes; clamped between a sensible minimum and
+                  // the leftover space after the fixed-width controls.
+                  final rulerWidth =
+                      (constraints.maxWidth * 0.5).clamp(400.0, 1400.0);
+                  return Row(
                 children: [
                   // ── Progress ring ───────────────────────────────────────────
                   const SizedBox(width: 20),
@@ -614,7 +623,7 @@ class MiniPlayerBar extends StatelessWidget {
                   // ── Lyric progress ruler ──────────────────────────────────────────
                   if (hasMedia && pm.hasSubtitles)
                     SizedBox(
-                      width: 600,
+                      width: rulerWidth,
                       height: 24,
                       child: LayoutBuilder(
                         builder: (context, constraints) {
@@ -664,6 +673,8 @@ class MiniPlayerBar extends StatelessWidget {
                   else
                     const SizedBox(width: 100),
                 ],
+                  );
+                },
               ),
             );
           },
