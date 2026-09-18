@@ -193,28 +193,11 @@ cd ..
 
 Always open `macos/Runner.xcworkspace`, not `Runner.xcodeproj`, after CocoaPods has been installed.
 
-> **Tip:** CocoaPods 1.16+ double-injects the `POD_CONFIGURATION_*` macros
-> into the compiler command line, which produces a wall of
-> "macro redefined" warnings on every `pod install`. To silence them, add
-> the following block to the `post_install` hook in **both** `ios/Podfile`
-> and `macos/Podfile` (replace any existing `post_install do |installer|`
-> block):
->
-> ```ruby
-> post_install do |installer|
->   installer.pods_project.targets.each do |target|
->     flutter_additional_ios_build_settings(target)
->     target.build_configurations.each do |config|
->       defs = config.build_settings['GCC_PREPROCESSOR_DEFINITIONS'] || ['$(inherited)']
->       defs = [defs] unless defs.is_a?(Array)
->       defs.reject! { |d| d.to_s.start_with?('POD_CONFIGURATION_') }
->       config.build_settings['GCC_PREPROCESSOR_DEFINITIONS'] = defs
->     end
->   end
-> end
-> ```
->
-> (`ios/Podfile` already contains this block.)
+> **Note:** Both `ios/Podfile` and `macos/Podfile` already include a
+> `post_install` hook that strips the duplicated `POD_CONFIGURATION_*`
+> macros that CocoaPods 1.16+ injects. If you ever regenerate either
+> Podfile (for example with `flutter create --platforms=<platform> .`),
+> re-apply the hook from `ios/Podfile` to whichever Podfile was reset.
 
 If iOS reports that CocoaPods is missing or the pods are stale:
 

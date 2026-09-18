@@ -38,5 +38,29 @@ end
 post_install do |installer|
   installer.pods_project.targets.each do |target|
     flutter_additional_macos_build_settings(target)
+    # CocoaPods 1.16+ double-injects `POD_CONFIGURATION_*` macros into the
+    # compiler command line, which produces "macro redefined" warnings on
+    # every Pod. Strip the GCC_PREPROCESSOR_DEFINITIONS entries CocoaPods
+    # adds; the -D flag that Flutter injects is enough.
+    target.build_configurations.each do |config|
+      defs = config.build_settings['GCC_PREPROCESSOR_DEFINITIONS'] || ['$(inherited)']
+      defs = [defs] unless defs.is_a?(Array)
+      defs.reject! { |d| d.to_s.start_with?('POD_CONFIGURATION_') }
+      config.build_settings['GCC_PREPROCESSOR_DEFINITIONS'] = defs
+    end
+    # Suppress warnings for `PrivacyInfo.xcprivacy` files that some
+    # third-party packages ship without declaring in their podspec
+    # resource files (notably volume_controller 3.7.1).
+    target.build_configurations.each do |config|
+      warned = config.build_settings['GCC_WARN_INHIBIT_ALL_WARNINGS'] == 'YES'
+      unless warned
+        existing = config.build_settings['WARNING_CFLAGS'] || ['$(inherited)']
+        existing = [existing] unless existing.is_a?(Array)
+        existing << '-Wno-unknown-warning'
+        # Hide the specific "no rule to process file" diagnostic.
+        existing << '-Wno-unknown-warning-option'
+        config.build_settings['WARNING_CFLAGS'] = existing
+      end
+    end
   end
 end
