@@ -321,22 +321,6 @@ class _IOSPlayerScreenState extends State<IOSPlayerScreen> {
     });
   }
 
-  /// Returns the appropriate icon for a given repeat mode.
-  IconData _getRepeatModeIcon(LyricRepeatMode mode) {
-    switch (mode) {
-      case LyricRepeatMode.noRepeat:
-        return CupertinoIcons.repeat;
-      case LyricRepeatMode.repeatOne:
-        return CupertinoIcons.repeat;
-      case LyricRepeatMode.repeatTwo:
-        return CupertinoIcons.repeat_1;
-      case LyricRepeatMode.repeatThree:
-        return CupertinoIcons.repeat_1;
-      case LyricRepeatMode.repeatAll:
-        return CupertinoIcons.repeat;
-    }
-  }
-
   void _setVolume(double value) {
     final volume = value.clamp(0.0, 1.0);
     if (volume > 0) _lastAudibleVolume = volume;
@@ -1091,20 +1075,20 @@ class _IOSRepeatModeDropdown extends StatelessWidget {
 
   void _showMenu(BuildContext context) async {
     final box = context.findRenderObject() as RenderBox?;
-    if (box == null) return;
-    final overlay =
-        Overlay.of(context).context.findRenderObject() as RenderBox?;
-    if (overlay == null) return;
-    final position = RelativeRect.fromRect(
-      Rect.fromPoints(
-        box.localToGlobal(box.size.bottomLeft(Offset.zero), ancestor: overlay),
-        box.localToGlobal(box.size.bottomRight(Offset.zero), ancestor: overlay),
-      ),
-      Offset.zero & overlay.size,
-    );
+    Offset? anchor;
+    if (box != null) {
+      final overlay =
+          Overlay.of(context).context.findRenderObject() as RenderBox?;
+      if (overlay != null) {
+        anchor = box.localToGlobal(
+          box.size.bottomCenter(Offset.zero),
+          ancestor: overlay,
+        );
+      }
+    }
     final selected = await showCupertinoModalPopup<LyricRepeatMode>(
       context: context,
-      position: position,
+      anchorPoint: anchor,
       builder: (context) => CupertinoActionSheet(
         title: const Text('Lyric repeat mode'),
         message: Text('Current: ${repeatMode.label}'),
