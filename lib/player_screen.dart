@@ -333,7 +333,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
                               PlaybackManager.instance.showSubtitleTrack &&
                               _currentIndex != null)
                             Positioned(
-                              top: 12,
+                              bottom: 12,
                               left: 16,
                               right: 16,
                               child: IgnorePointer(
