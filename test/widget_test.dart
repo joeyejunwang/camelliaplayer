@@ -11,7 +11,7 @@ void main() {
 
     expect(find.text('Camellia Player'), findsOneWidget);
     expect(find.text('Audio or video file'), findsOneWidget);
-    expect(find.text('Pick or drop an .mp4, .wav, .mp3, …'), findsOneWidget);
+    expect(find.text('Pick or drop an .mp4, .mp3, .aac, .wav, …'), findsOneWidget);
     expect(find.text('Choose file'), findsOneWidget);
   });
 }

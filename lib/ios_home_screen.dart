@@ -13,6 +13,7 @@ import 'last_played.dart';
 const _supportedExts = [
   'mp3',
   'wav',
+  'aac',
   'mp4',
   'm4v',
   'mkv',

@@ -10,6 +10,7 @@ import 'player_screen.dart';
 /// Extensions accepted for drag-and-drop / file picker.
 const _supportedExts = [
   'mp3',
+  'aac',
   'wav',
   'mp4',
   'm4v',
@@ -134,7 +135,7 @@ class _HomeScreenState extends State<HomeScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text(
-            'No supported media file in the drop. Try .mp4 or .wav.',
+            'No supported media file in the drop. Try .mp4, .mp3, .aac, .wav, …',
           ),
         ),
       );
@@ -172,7 +173,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     _PickerCard(
                       title: 'Audio or video file',
                       subtitle:
-                          _videoPath ?? 'Pick or drop an .mp4, .wav, .mp3, …',
+                          _videoPath ?? 'Pick or drop an .mp4, .mp3, .aac, .wav, …',
                       icon: Icons.perm_media_outlined,
                       actionLabel: 'Choose file',
                       onTap: _pickVideo,

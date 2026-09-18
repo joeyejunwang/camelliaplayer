@@ -52,7 +52,13 @@ class _PlayerScreenState extends State<PlayerScreen> {
                 widget.videoFile?.path ?? widget.videoPath ?? widget.videoName,
               )
               .toLowerCase() ==
-          '.wav';
+          '.wav' ||
+      p
+              .extension(
+                widget.videoFile?.path ?? widget.videoPath ?? widget.videoName,
+              )
+              .toLowerCase() ==
+          '.aac';
 
   @override
   void initState() {

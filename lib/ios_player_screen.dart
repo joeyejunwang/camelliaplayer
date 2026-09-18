@@ -47,7 +47,7 @@ class _IOSPlayerScreenState extends State<IOSPlayerScreen> {
   final ScrollController _lyricsScrollController = ScrollController();
   bool get _isMp3 {
     final ext = p.extension(widget.videoPath).toLowerCase();
-    return ext == '.mp3' || ext == '.wav';
+    return ext == '.mp3' || ext == '.wav' || ext == '.aac';
   }
 
   @override
