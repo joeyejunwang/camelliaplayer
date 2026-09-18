@@ -45,25 +45,42 @@ post_install do |installer|
   # CocoaPods 1.16+ double-injects `POD_CONFIGURATION_*` macros into each
   # Pod's compile command line (once via the generated xcconfig and once
   # via OTHER_CFLAGS), producing a wall of "macro redefined" warnings.
-  # Strip the duplicate from both places.
+  # Strip the duplicate from both places, handle both `-DFOO=1` and
+  # `-D "FOO=1"` (quoted) forms, fall back to `$(inherited)` if the
+  # array becomes empty, and add `-Wno-macro-redefined` as a safety net.
   installer.pods_project.targets.each do |target|
     target.build_configurations.each do |config|
       # 1. Strip from GCC_PREPROCESSOR_DEFINITIONS.
       defs = config.build_settings['GCC_PREPROCESSOR_DEFINITIONS'] || ['$(inherited)']
       defs = [defs] unless defs.is_a?(Array)
-      defs.reject! { |d| d.to_s.start_with?('POD_CONFIGURATION_') }
+      defs.reject! { |d| d.to_s.include?('POD_CONFIGURATION_') }
+      defs = ['$(inherited)'] if defs.empty?
       config.build_settings['GCC_PREPROCESSOR_DEFINITIONS'] = defs
 
-      # 2. Strip -D "POD_CONFIGURATION_..." from OTHER_CFLAGS / OTHER_CPLUSPLUSFLAGS.
-      ['OTHER_CFLAGS', 'OTHER_CPLUSPLUSFLAGS'].each do |key|
+      # 2. Strip `-DPOD_CONFIGURATION_*` (and `-D "POD_CONFIGURATION_*"`)
+      #    from C/C++/Swift flag arrays.
+      ['OTHER_CFLAGS', 'OTHER_CPLUSPLUSFLAGS', 'OTHER_SWIFT_FLAGS'].each do |key|
         flags = config.build_settings[key] || ['$(inherited)']
         flags = [flags] unless flags.is_a?(Array)
         flags.reject! do |flag|
-          flag.to_s.include?('-DPOD_CONFIGURATION_') ||
-            flag.to_s.include?('-D "POD_CONFIGURATION_') ||
-            flag.to_s =~ /-DPOD_CONFIGURATION_\$\(CONFIG\)/
+          s = flag.to_s
+          s.include?('POD_CONFIGURATION_') &&
+            (s.start_with?('-D') || s =~ /-D\s*POD_CONFIGURATION_/)
         end
+        flags = ['$(inherited)'] if flags.empty?
         config.build_settings[key] = flags
+      end
+    end
+  end
+
+  # 3. Belt-and-suspenders: silence any remaining macro-redefined warning.
+  installer.pods_project.targets.each do |target|
+    target.build_configurations.each do |config|
+      unless config.build_settings['GCC_WARN_INHIBIT_ALL_WARNINGS'] == 'YES'
+        existing = config.build_settings['WARNING_CFLAGS'] || ['$(inherited)']
+        existing = [existing] unless existing.is_a?(Array)
+        existing << '-Wno-macro-redefined'
+        config.build_settings['WARNING_CFLAGS'] = existing
       end
     end
   end
