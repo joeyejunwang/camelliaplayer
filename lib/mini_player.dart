@@ -7,6 +7,30 @@ import 'package:record/record.dart';
 
 import 'playback_manager.dart';
 
+/// Returns the appropriate icon for a given repeat mode.
+IconData _getRepeatModeIcon(LyricRepeatMode mode) {
+  switch (mode) {
+    case LyricRepeatMode.sequential:
+      return Icons.repeat_rounded;
+    case LyricRepeatMode.loopOne:
+      return Icons.repeat_on_rounded;
+    case LyricRepeatMode.loopTwice:
+      return Icons.repeat_one_rounded;
+  }
+}
+
+/// Returns the tooltip text for a given repeat mode.
+String _getRepeatModeTooltip(LyricRepeatMode mode) {
+  switch (mode) {
+    case LyricRepeatMode.sequential:
+      return 'Play all lyrics sequentially (R) — click to loop current lyric';
+    case LyricRepeatMode.loopOne:
+      return 'Loop current lyric (R) — click to loop each lyric 2 times';
+    case LyricRepeatMode.loopTwice:
+      return 'Loop each lyric 2 times (R) — click to play all sequentially';
+  }
+}
+
 class _CircleProgress extends StatelessWidget {
   const _CircleProgress({
     required this.progress,
@@ -578,16 +602,12 @@ class MiniPlayerBar extends StatelessWidget {
                   else
                     const SizedBox(width: 152),
 
-                  // ── Loop switch (off = play through every lyric sequentially; on = loop the current lyric) ──
+                  // ── Loop mode switch (cycles through: sequential → loopOne → loopTwice) ──
                   _MiniBtn(
-                    icon: pm.repeatLyric
-                        ? Icons.repeat_on_rounded
-                        : Icons.repeat_rounded,
-                    onPressed: hasMedia ? () => pm.toggleRepeatLyric() : null,
-                    tooltip: pm.repeatLyric
-                        ? 'Loop current lyric (R) — click to play all sequentially'
-                        : 'Play all lyrics sequentially (R) — click to loop current lyric',
-                    isActive: pm.repeatLyric,
+                    icon: _getRepeatModeIcon(pm.repeatMode),
+                    onPressed: hasMedia ? () => pm.cycleRepeatMode() : null,
+                    tooltip: _getRepeatModeTooltip(pm.repeatMode),
+                    isActive: pm.repeatMode != LyricRepeatMode.sequential,
                   ),
                   const SizedBox(width: 4),
 

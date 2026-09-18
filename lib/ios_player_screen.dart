@@ -7,6 +7,7 @@ import 'package:path/path.dart' as p;
 import 'package:file_picker/file_picker.dart';
 
 import 'last_played.dart';
+import 'playback_manager.dart';
 import 'subtitle_loader.dart';
 
 /// iOS-specific video player screen using native video_player
@@ -36,10 +37,11 @@ class _IOSPlayerScreenState extends State<IOSPlayerScreen> {
   String? _errorMessage;
   bool _showLyrics = true;
   bool _showSubtitleOverlay = true;
-  bool _repeatLyric = true;
+  LyricRepeatMode _repeatMode = LyricRepeatMode.loopOne;
   bool _automaticSeekPending = false;
   int? _loopLyricIndex;
   int? _lastPersistedLyricIndex;
+  int _currentLyricRepeatCount = 0;
   Future<void> _persistQueue = Future<void>.value();
   int? _lastScrolledIndex;
   double _volume = 1;
@@ -105,7 +107,7 @@ class _IOSPlayerScreenState extends State<IOSPlayerScreen> {
   void _videoListener() {
     if (!mounted || _videoController == null) return;
     _handleLyricPlayback();
-    final index = _repeatLyric
+    final index = _repeatMode == LyricRepeatMode.loopOne
         ? (_loopLyricIndex ?? _timelineLyricIndex)
         : _timelineLyricIndex;
     if (index >= 0) _persistLyricIndex(index);
@@ -165,7 +167,7 @@ class _IOSPlayerScreenState extends State<IOSPlayerScreen> {
         _subtitles = loaded;
         _showLyrics = loaded.isNotEmpty;
         _showSubtitleOverlay = true;
-        _repeatLyric = true;
+        _repeatMode = LyricRepeatMode.loopOne;
         _loopLyricIndex = _initialIndexFor(loaded);
       });
       final initialIndex = _loopLyricIndex!;
@@ -234,7 +236,9 @@ class _IOSPlayerScreenState extends State<IOSPlayerScreen> {
     }
 
     final timelineIndex = _timelineLyricIndex;
-    if (_repeatLyric) {
+
+    // loopOne: loop current lyric indefinitely
+    if (_repeatMode == LyricRepeatMode.loopOne) {
       final index = _loopLyricIndex ?? timelineIndex;
       if (index < 0 || index >= _subtitles.length) return;
       _loopLyricIndex = index;
@@ -250,7 +254,19 @@ class _IOSPlayerScreenState extends State<IOSPlayerScreen> {
 
     if (!controller.value.isPlaying || timelineIndex < 0) return;
     final current = _subtitles[timelineIndex];
+
     if (_position >= current.end) {
+      // loopTwice: loop current lyric 2 times before advancing
+      if (_repeatMode == LyricRepeatMode.loopTwice) {
+        _currentLyricRepeatCount++;
+        if (_currentLyricRepeatCount < 2) {
+          _automaticSeek(current.start, resume: true);
+          return;
+        }
+        _currentLyricRepeatCount = 0;
+      }
+
+      // sequential: advance to next lyric
       final nextIndex = (timelineIndex + 1) % _subtitles.length;
       _automaticSeek(_subtitles[nextIndex].start, resume: true);
     }
@@ -291,10 +307,13 @@ class _IOSPlayerScreenState extends State<IOSPlayerScreen> {
     _seekToSubtitleIndex(target);
   }
 
-  void _toggleRepeatLyric() {
+  void _cycleRepeatMode() {
     setState(() {
-      _repeatLyric = !_repeatLyric;
-      if (_repeatLyric) {
+      final modes = LyricRepeatMode.values;
+      final nextIndex = (modes.indexOf(_repeatMode) + 1) % modes.length;
+      _repeatMode = modes[nextIndex];
+      _currentLyricRepeatCount = 0;
+      if (_repeatMode == LyricRepeatMode.loopOne) {
         final active = _currentSubtitleIndex;
         _loopLyricIndex =
             active ?? (_timelineLyricIndex >= 0 ? _timelineLyricIndex : 0);
@@ -302,6 +321,18 @@ class _IOSPlayerScreenState extends State<IOSPlayerScreen> {
         _loopLyricIndex = null;
       }
     });
+  }
+
+  /// Returns the appropriate icon for a given repeat mode.
+  IconData _getRepeatModeIcon(LyricRepeatMode mode) {
+    switch (mode) {
+      case LyricRepeatMode.sequential:
+        return CupertinoIcons.repeat;
+      case LyricRepeatMode.loopOne:
+        return CupertinoIcons.repeat;
+      case LyricRepeatMode.loopTwice:
+        return CupertinoIcons.repeat_1;
+    }
   }
 
   void _setVolume(double value) {
@@ -392,11 +423,9 @@ class _IOSPlayerScreenState extends State<IOSPlayerScreen> {
                       onPressed: _pickSubtitle,
                     ),
                     _IOSControlButton(
-                      icon: _repeatLyric
-                          ? CupertinoIcons.repeat_1
-                          : CupertinoIcons.repeat,
-                      onPressed: _subtitles.isEmpty ? null : _toggleRepeatLyric,
-                      isActive: _repeatLyric,
+                      icon: _getRepeatModeIcon(_repeatMode),
+                      onPressed: _subtitles.isEmpty ? null : _cycleRepeatMode,
+                      isActive: _repeatMode != LyricRepeatMode.sequential,
                     ),
                     _IOSControlButton(
                       icon: _showSubtitleOverlay
