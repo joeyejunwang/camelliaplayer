@@ -288,7 +288,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
                       flex: 65,
                       child: Stack(
                         children: [
-                          // Video
+                          // Video or audio artwork
                           Positioned.fill(
                             child: Center(
                               child: _isMp3
@@ -322,6 +322,51 @@ class _PlayerScreenState extends State<PlayerScreen> {
                                     ),
                             ),
                           ),
+
+                          // Centered lyric overlay for audio-only playback
+                          // (.wav / .mp3 / .aac). Shown only while the
+                          // subtitle (S) toggle is on and a lyric cue is
+                          // active at the current playhead position so the
+                          // user gets karaoke-style feedback on top of the
+                          // audio artwork.
+                          if (_isMp3 &&
+                              PlaybackManager.instance.showSubtitleTrack &&
+                              _currentIndex != null)
+                            Positioned.fill(
+                              child: IgnorePointer(
+                                child: Center(
+                                  child: Padding(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 24,
+                                    ),
+                                    child: Container(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 16,
+                                        vertical: 8,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color: Colors.black
+                                            .withValues(alpha: 0.55),
+                                        borderRadius:
+                                            BorderRadius.circular(8),
+                                      ),
+                                      child: Text(
+                                        _subtitles[_currentIndex!].text,
+                                        textAlign: TextAlign.center,
+                                        maxLines: 3,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: const TextStyle(
+                                          color: Colors.white,
+                                          fontSize: 22,
+                                          fontWeight: FontWeight.w500,
+                                          height: 1.3,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
 
                           // Floating back button
                           Positioned(

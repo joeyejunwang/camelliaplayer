@@ -109,7 +109,17 @@ Recognized companion extensions are `.srt`, `.vtt`, `.ass`, and `.ssa`. In the i
 | Up / Down | Volume up / down |
 | L | Show or hide the lyrics list |
 | R | Repeat the current lyric |
-| S | Toggle the embedded subtitle track |
+| S | Toggle the embedded subtitle track, and the centered lyric overlay that appears on top of the audio artwork when playing `.wav`, `.mp3`, or `.aac` files |
+
+## Centered lyric overlay for audio files
+
+When a `.wav`, `.mp3`, or `.aac` file is playing and a sibling subtitle
+(`.srt`, `.vtt`, `.ass`, or `.ssa`) is loaded, the current lyric cue is
+shown centered on top of the audio artwork. The overlay is controlled by
+the **Subtitle on / off** button (or the **S** keyboard shortcut) and
+mirrors the behavior of the in-video subtitle track on Windows. Use the
+**Show lyric** button (or **L**) to toggle the side lyrics panel
+independently.
 
 ## Project structure
 
