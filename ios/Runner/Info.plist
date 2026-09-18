@@ -26,6 +26,16 @@
 	<true/>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>Camellia Player needs access to your photo library so you can choose videos to play with synchronized lyrics.</string>
+	<key>NSAppleMusicUsageDescription</key>
+	<string>Camellia Player needs access to your music library so you can choose audio files to play with synchronized lyrics.</string>
+	<key>NSDocumentsFolderUsageDescription</key>
+	<string>Camellia Player needs access to your documents so you can pick audio, video, and subtitle files to play.</string>
+	<key>UIFileSharingEnabled</key>
+	<true/>
+	<key>LSSupportsOpeningDocumentsInPlace</key>
+	<true/>
+	<key>UISupportsDocumentBrowser</key>
+	<true/>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>
