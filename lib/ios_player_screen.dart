@@ -37,7 +37,7 @@ class _IOSPlayerScreenState extends State<IOSPlayerScreen> {
   String? _errorMessage;
   bool _showLyrics = true;
   bool _showSubtitleOverlay = true;
-  LyricRepeatMode _repeatMode = LyricRepeatMode.loopOne;
+  LyricRepeatMode _repeatMode = LyricRepeatMode.repeatAll;
   bool _automaticSeekPending = false;
   int? _loopLyricIndex;
   int? _lastPersistedLyricIndex;
@@ -107,7 +107,7 @@ class _IOSPlayerScreenState extends State<IOSPlayerScreen> {
   void _videoListener() {
     if (!mounted || _videoController == null) return;
     _handleLyricPlayback();
-    final index = _repeatMode == LyricRepeatMode.loopOne
+    final index = _repeatMode == LyricRepeatMode.repeatAll
         ? (_loopLyricIndex ?? _timelineLyricIndex)
         : _timelineLyricIndex;
     if (index >= 0) _persistLyricIndex(index);
@@ -167,7 +167,7 @@ class _IOSPlayerScreenState extends State<IOSPlayerScreen> {
         _subtitles = loaded;
         _showLyrics = loaded.isNotEmpty;
         _showSubtitleOverlay = true;
-        _repeatMode = LyricRepeatMode.loopOne;
+        _repeatMode = LyricRepeatMode.repeatAll;
         _loopLyricIndex = _initialIndexFor(loaded);
       });
       final initialIndex = _loopLyricIndex!;
@@ -237,8 +237,8 @@ class _IOSPlayerScreenState extends State<IOSPlayerScreen> {
 
     final timelineIndex = _timelineLyricIndex;
 
-    // loopOne: loop current lyric indefinitely
-    if (_repeatMode == LyricRepeatMode.loopOne) {
+    // repeatAll: loop current lyric indefinitely
+    if (_repeatMode == LyricRepeatMode.repeatAll) {
       final index = _loopLyricIndex ?? timelineIndex;
       if (index < 0 || index >= _subtitles.length) return;
       _loopLyricIndex = index;
@@ -256,17 +256,17 @@ class _IOSPlayerScreenState extends State<IOSPlayerScreen> {
     final current = _subtitles[timelineIndex];
 
     if (_position >= current.end) {
-      // loopTwice: loop current lyric 2 times before advancing
-      if (_repeatMode == LyricRepeatMode.loopTwice) {
+      final required = _repeatMode.times;
+      if (required != null && required > 1) {
+        // Loop current lyric N times total before advancing.
         _currentLyricRepeatCount++;
-        if (_currentLyricRepeatCount < 2) {
+        if (_currentLyricRepeatCount < required) {
           _automaticSeek(current.start, resume: true);
           return;
         }
         _currentLyricRepeatCount = 0;
       }
 
-      // sequential: advance to next lyric
       final nextIndex = (timelineIndex + 1) % _subtitles.length;
       _automaticSeek(_subtitles[nextIndex].start, resume: true);
     }
@@ -307,13 +307,11 @@ class _IOSPlayerScreenState extends State<IOSPlayerScreen> {
     _seekToSubtitleIndex(target);
   }
 
-  void _cycleRepeatMode() {
+  void _setRepeatMode(LyricRepeatMode mode) {
     setState(() {
-      final modes = LyricRepeatMode.values;
-      final nextIndex = (modes.indexOf(_repeatMode) + 1) % modes.length;
-      _repeatMode = modes[nextIndex];
+      _repeatMode = mode;
       _currentLyricRepeatCount = 0;
-      if (_repeatMode == LyricRepeatMode.loopOne) {
+      if (_repeatMode == LyricRepeatMode.repeatAll) {
         final active = _currentSubtitleIndex;
         _loopLyricIndex =
             active ?? (_timelineLyricIndex >= 0 ? _timelineLyricIndex : 0);
@@ -326,12 +324,16 @@ class _IOSPlayerScreenState extends State<IOSPlayerScreen> {
   /// Returns the appropriate icon for a given repeat mode.
   IconData _getRepeatModeIcon(LyricRepeatMode mode) {
     switch (mode) {
-      case LyricRepeatMode.sequential:
+      case LyricRepeatMode.noRepeat:
         return CupertinoIcons.repeat;
-      case LyricRepeatMode.loopOne:
+      case LyricRepeatMode.repeatOne:
         return CupertinoIcons.repeat;
-      case LyricRepeatMode.loopTwice:
+      case LyricRepeatMode.repeatTwo:
         return CupertinoIcons.repeat_1;
+      case LyricRepeatMode.repeatThree:
+        return CupertinoIcons.repeat_1;
+      case LyricRepeatMode.repeatAll:
+        return CupertinoIcons.repeat;
     }
   }
 
@@ -422,10 +424,12 @@ class _IOSPlayerScreenState extends State<IOSPlayerScreen> {
                       icon: CupertinoIcons.text_badge_plus,
                       onPressed: _pickSubtitle,
                     ),
-                    _IOSControlButton(
-                      icon: _getRepeatModeIcon(_repeatMode),
-                      onPressed: _subtitles.isEmpty ? null : _cycleRepeatMode,
-                      isActive: _repeatMode != LyricRepeatMode.sequential,
+                    _IOSRepeatModeDropdown(
+                      repeatMode: _repeatMode,
+                      onChanged: (mode) {
+                        if (mode != null) _setRepeatMode(mode);
+                      },
+                      enabled: _subtitles.isNotEmpty,
                     ),
                     _IOSControlButton(
                       icon: _showSubtitleOverlay
@@ -999,5 +1003,137 @@ class _IOSControlButton extends StatelessWidget {
         ),
       ),
     );
+  }
+}
+
+/// iOS-styled compact dropdown for selecting a [LyricRepeatMode].
+class _IOSRepeatModeDropdown extends StatelessWidget {
+  const _IOSRepeatModeDropdown({
+    required this.repeatMode,
+    required this.onChanged,
+    required this.enabled,
+  });
+
+  final LyricRepeatMode repeatMode;
+  final ValueChanged<LyricRepeatMode?> onChanged;
+  final bool enabled;
+
+  @override
+  Widget build(BuildContext context) {
+    return CupertinoButton(
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
+      minimumSize: const Size(36, 36),
+      onPressed: enabled ? () => _showMenu(context) : null,
+      child: Container(
+        height: 34,
+        padding: const EdgeInsets.symmetric(horizontal: 10),
+        decoration: BoxDecoration(
+          color: repeatMode != LyricRepeatMode.noRepeat
+              ? CupertinoColors.systemPink.withValues(alpha: 0.24)
+              : CupertinoColors.transparent,
+          borderRadius: BorderRadius.circular(9),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              _iosRepeatIcon(repeatMode),
+              size: 18,
+              color: enabled
+                  ? (repeatMode != LyricRepeatMode.noRepeat
+                      ? CupertinoColors.systemPink
+                      : CupertinoColors.white)
+                  : CupertinoColors.inactiveGray,
+            ),
+            const SizedBox(width: 6),
+            Text(
+              repeatMode.shortLabel,
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                color: enabled
+                    ? (repeatMode != LyricRepeatMode.noRepeat
+                        ? CupertinoColors.systemPink
+                        : CupertinoColors.white)
+                    : CupertinoColors.inactiveGray,
+              ),
+            ),
+            const SizedBox(width: 2),
+            Icon(
+              CupertinoIcons.chevron_down,
+              size: 12,
+              color: enabled
+                  ? (repeatMode != LyricRepeatMode.noRepeat
+                      ? CupertinoColors.systemPink
+                      : CupertinoColors.white)
+                  : CupertinoColors.inactiveGray,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  IconData _iosRepeatIcon(LyricRepeatMode mode) {
+    switch (mode) {
+      case LyricRepeatMode.noRepeat:
+        return CupertinoIcons.repeat;
+      case LyricRepeatMode.repeatOne:
+        return CupertinoIcons.repeat;
+      case LyricRepeatMode.repeatTwo:
+        return CupertinoIcons.repeat_1;
+      case LyricRepeatMode.repeatThree:
+        return CupertinoIcons.repeat_1;
+      case LyricRepeatMode.repeatAll:
+        return CupertinoIcons.repeat;
+    }
+  }
+
+  void _showMenu(BuildContext context) async {
+    final box = context.findRenderObject() as RenderBox?;
+    if (box == null) return;
+    final overlay =
+        Overlay.of(context).context.findRenderObject() as RenderBox?;
+    if (overlay == null) return;
+    final position = RelativeRect.fromRect(
+      Rect.fromPoints(
+        box.localToGlobal(box.size.bottomLeft(Offset.zero), ancestor: overlay),
+        box.localToGlobal(box.size.bottomRight(Offset.zero), ancestor: overlay),
+      ),
+      Offset.zero & overlay.size,
+    );
+    final selected = await showCupertinoModalPopup<LyricRepeatMode>(
+      context: context,
+      position: position,
+      builder: (context) => CupertinoActionSheet(
+        title: const Text('Lyric repeat mode'),
+        message: Text('Current: ${repeatMode.label}'),
+        actions: [
+          for (final mode in LyricRepeatMode.values)
+            CupertinoActionSheetAction(
+              isDefaultAction: mode == repeatMode,
+              onPressed: () => Navigator.of(context).pop(mode),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(
+                    _iosRepeatIcon(mode),
+                    size: 18,
+                    color: CupertinoColors.systemPink,
+                  ),
+                  const SizedBox(width: 10),
+                  Text(mode.label),
+                ],
+              ),
+            ),
+        ],
+        cancelButton: CupertinoActionSheetAction(
+          isDestructiveAction: true,
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('Cancel'),
+        ),
+      ),
+    );
+    if (selected != null) onChanged(selected);
   }
 }

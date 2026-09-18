@@ -5,14 +5,65 @@ import 'package:media_kit/media_kit.dart';
 
 import 'subtitle_loader.dart';
 
-/// Defines how lyrics are repeated during playback.
+/// Defines how lyrics are repeated during playback. The [times] value
+/// (when not null) is the number of times the current lyric is played
+/// before advancing to the next lyric. A null [times] means the current
+/// lyric loops forever without ever advancing.
 enum LyricRepeatMode {
-  /// Play all lyrics sequentially (each lyric plays once, then moves to next).
-  sequential,
+  /// No repeat logic: each lyric plays once and the player auto-advances
+  /// to the next (equivalent to [repeatOne] semantically, but signals
+  /// "do not loop" intent).
+  noRepeat(times: 1),
+
+  /// Play the current lyric exactly once, then advance to the next.
+  repeatOne(times: 1),
+
+  /// Play the current lyric exactly twice, then advance to the next.
+  repeatTwo(times: 2),
+
+  /// Play the current lyric exactly three times, then advance to the next.
+  repeatThree(times: 3),
+
   /// Loop the current lyric indefinitely (default).
-  loopOne,
-  /// Loop each lyric exactly 2 times before advancing to the next.
-  loopTwice,
+  repeatAll(times: null);
+
+  const LyricRepeatMode({required this.times});
+
+  /// Number of times the current lyric should be played before advancing.
+  /// `null` means loop forever without advancing.
+  final int? times;
+
+  /// Human-readable label used in the dropdown.
+  String get label {
+    switch (this) {
+      case LyricRepeatMode.noRepeat:
+        return 'No repeat';
+      case LyricRepeatMode.repeatOne:
+        return 'Repeat 1× then next lyric 1×';
+      case LyricRepeatMode.repeatTwo:
+        return 'Repeat 2× then next lyric 2×';
+      case LyricRepeatMode.repeatThree:
+        return 'Repeat 3× then next lyric 3×';
+      case LyricRepeatMode.repeatAll:
+        return 'Repeat every lyric forever';
+    }
+  }
+
+  /// Short label used on the mini-player trigger button.
+  String get shortLabel {
+    switch (this) {
+      case LyricRepeatMode.noRepeat:
+        return 'Off';
+      case LyricRepeatMode.repeatOne:
+        return '×1';
+      case LyricRepeatMode.repeatTwo:
+        return '×2';
+      case LyricRepeatMode.repeatThree:
+        return '×3';
+      case LyricRepeatMode.repeatAll:
+        return '∞';
+    }
+  }
 }
 
 /// Singleton that owns the shared [Player] instance and exposes its
@@ -36,7 +87,7 @@ class PlaybackManager extends ChangeNotifier {
   double _volume = 1.0;
   bool _hasMedia = false;
   String _mediaTitle = 'No media playing';
-  LyricRepeatMode _repeatMode = LyricRepeatMode.loopOne;
+  LyricRepeatMode _repeatMode = LyricRepeatMode.repeatAll;
   bool _showSubtitleTrack = true;
   bool _showLyric = true;
   int _currentLyricRepeatCount = 0;
@@ -50,7 +101,7 @@ class PlaybackManager extends ChangeNotifier {
   /// through every lyric one by one when repeat-lyric is off.
   List<SubtitleEntry> _subtitles = const [];
 
-  // When [_repeatMode] is loopOne and a segment is set, the position listener
+  // When [_repeatMode] is repeatAll and a segment is set, the position listener
   // snaps the playhead back to [_loopStart] once the playhead crosses
   // [_loopEnd]. With only [_loopStart] set (no end), the track-completion
   // listener is the fallback — useful when the lyric carries no explicit
@@ -112,7 +163,7 @@ class PlaybackManager extends ChangeNotifier {
       notifyListeners();
     });
     _completedSub = p.stream.completed.listen((_) {
-      if (_repeatMode == LyricRepeatMode.loopOne) {
+      if (_repeatMode == LyricRepeatMode.repeatAll) {
         final target = _loopStart ?? Duration.zero;
         seek(target);
         if (!_isPlaying) play();
@@ -128,7 +179,7 @@ class PlaybackManager extends ChangeNotifier {
     _mediaTitle = title ?? media.uri.toString();
     _position = Duration.zero;
     _duration = Duration.zero;
-    _repeatMode = LyricRepeatMode.loopOne;
+    _repeatMode = LyricRepeatMode.repeatAll;
     _showSubtitleTrack = true;
     _showLyric = true;
     _loopStart = null;
@@ -192,15 +243,14 @@ class PlaybackManager extends ChangeNotifier {
   void playFirstLyric() => onPlayFirstLyric?.call();
   void playLastLyric() => onPlayLastLyric?.call();
 
-  /// Cycles through the repeat modes: sequential → loopOne → loopTwice → sequential.
-  void cycleRepeatMode() {
-    final modes = LyricRepeatMode.values;
-    final nextIndex = (modes.indexOf(_repeatMode) + 1) % modes.length;
-    _repeatMode = modes[nextIndex];
+  /// Sets the lyric repeat mode directly (used by the dropdown).
+  void setRepeatMode(LyricRepeatMode mode) {
+    if (_repeatMode == mode) return;
+    _repeatMode = mode;
     _currentLyricRepeatCount = 0;
     notifyListeners();
-    // If we're enabling loopOne at the end of the track, kick playback off.
-    if (_repeatMode == LyricRepeatMode.loopOne && !_isPlaying && _hasMedia) {
+    // If we're enabling repeatAll at the end of the track, kick playback off.
+    if (_repeatMode == LyricRepeatMode.repeatAll && !_isPlaying && _hasMedia) {
       seek(_loopStart ?? Duration.zero);
       play();
     }
@@ -231,7 +281,7 @@ class PlaybackManager extends ChangeNotifier {
   }
 
   /// Detail screen calls this as the active lyric changes. When
-  /// [_repeatMode] is loopOne, the player will loop the [start, end] window.
+  /// [_repeatMode] is repeatAll, the player will loop the [start, end] window.
   /// Pass null for either side to clear that bound (e.g. on dispose).
   ///
   /// This method never seeks — looping is handled by [_maybeLoopSegment]
@@ -244,24 +294,21 @@ class PlaybackManager extends ChangeNotifier {
   }
 
   /// Position-tick hook. Handles:
-  /// - loopOne: snap playhead back to [_loopStart] when it crosses [_loopEnd]
-  /// - loopTwice: after playing current lyric 2 times, advance to next lyric
-  /// - sequential: auto-advance through every lyric one by one
+  /// - repeatAll: snap playhead back to [_loopStart] when it crosses [_loopEnd]
+  /// - any other mode with [LyricRepeatMode.times] set: play current lyric
+  ///   that many times then advance to next lyric
+  /// - noRepeat: auto-advance through every lyric one by one
   void _maybeLoopSegment() {
-    switch (_repeatMode) {
-      case LyricRepeatMode.loopOne:
-        final start = _loopStart;
-        final end = _loopEnd;
-        if (start == null) return;
-        if (end != null && end > start && _position >= end) {
-          seek(start);
-        }
-        return;
-
-      case LyricRepeatMode.loopTwice:
-      case LyricRepeatMode.sequential:
-        _maybeAdvanceLyric();
+    if (_repeatMode == LyricRepeatMode.repeatAll) {
+      final start = _loopStart;
+      final end = _loopEnd;
+      if (start == null) return;
+      if (end != null && end > start && _position >= end) {
+        seek(start);
+      }
+      return;
     }
+    _maybeAdvanceLyric();
   }
 
   /// Auto-advance through every lyric in [_subtitles]. Finds the latest
@@ -285,15 +332,14 @@ class PlaybackManager extends ChangeNotifier {
 
     final current = subs[idx];
     if (_position >= current.end) {
-      if (_repeatMode == LyricRepeatMode.loopTwice) {
-        // In loopTwice mode, loop the current lyric 2 times before advancing.
+      final required = _repeatMode.times;
+      if (required != null && required > 1) {
+        // Loop current lyric N times total before advancing.
         _currentLyricRepeatCount++;
-        if (_currentLyricRepeatCount < 2) {
-          // Loop back to the start of current lyric.
+        if (_currentLyricRepeatCount < required) {
           seek(current.start);
           return;
         }
-        // After 2 loops, reset counter and advance to next lyric.
         _currentLyricRepeatCount = 0;
       }
 
@@ -313,7 +359,7 @@ class PlaybackManager extends ChangeNotifier {
     _position = Duration.zero;
     _duration = Duration.zero;
     _isPlaying = false;
-    _repeatMode = LyricRepeatMode.loopOne;
+    _repeatMode = LyricRepeatMode.repeatAll;
     _showSubtitleTrack = true;
     _showLyric = true;
     _loopStart = null;

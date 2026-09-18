@@ -159,38 +159,44 @@ class _HomeScreenState extends State<HomeScreen> {
           },
           child: Stack(
             children: [
-              SingleChildScrollView(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 24,
-                  vertical: 32,
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    const SizedBox(height: 12),
-                    _Header(theme: theme),
-                    const SizedBox(height: 32),
-                    _PickerCard(
-                      title: 'Audio or video file',
-                      subtitle:
-                          _videoPath ?? 'Pick or drop an .mp4, .mp3, .aac, .wav, …',
-                      icon: Icons.perm_media_outlined,
-                      actionLabel: 'Choose file',
-                      onTap: _pickVideo,
+              Center(
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 520),
+                  child: SingleChildScrollView(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 24,
+                      vertical: 32,
                     ),
-                    const SizedBox(height: 16),
-                    _DropHint(theme: theme, active: _isDragHovering),
-                    if (_lastPlayed != null) ...[
-                      const SizedBox(height: 16),
-                      _LastPlayedCard(
-                        theme: theme,
-                        record: _lastPlayed!,
-                        onReplay: () => _openMediaFile(_lastPlayed!.path),
-                      ),
-                    ],
-                    const SizedBox(height: 24),
-                    _TipBanner(theme: theme),
-                  ],
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        const SizedBox(height: 12),
+                        _Header(theme: theme),
+                        const SizedBox(height: 32),
+                        _PickerCard(
+                          title: 'Audio or video file',
+                          subtitle: _videoPath ??
+                              'Pick or drop an .mp4, .mp3, .aac, .wav, …',
+                          icon: Icons.perm_media_outlined,
+                          actionLabel: 'Choose file',
+                          onTap: _pickVideo,
+                        ),
+                        const SizedBox(height: 16),
+                        _DropHint(theme: theme, active: _isDragHovering),
+                        if (_lastPlayed != null) ...[
+                          const SizedBox(height: 16),
+                          _LastPlayedCard(
+                            theme: theme,
+                            record: _lastPlayed!,
+                            onReplay: () =>
+                                _openMediaFile(_lastPlayed!.path),
+                          ),
+                        ],
+                        const SizedBox(height: 24),
+                        _TipBanner(theme: theme),
+                      ],
+                    ),
+                  ),
                 ),
               ),
               if (_isDragHovering) _DropOverlay(theme: theme),
@@ -464,51 +470,77 @@ class _PickerCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return Card(
-      elevation: 0,
-      color: theme.colorScheme.surfaceContainer,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16),
-        side: BorderSide(color: theme.colorScheme.outlineVariant),
-      ),
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(16),
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Row(
-            children: [
-              CircleAvatar(
-                radius: 24,
-                backgroundColor: theme.colorScheme.primaryContainer,
-                child: Icon(icon, color: theme.colorScheme.onPrimaryContainer),
+    return Align(
+      alignment: Alignment.center,
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 360),
+        child: Card(
+          elevation: 0,
+          color: theme.colorScheme.surfaceContainer,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+            side: BorderSide(color: theme.colorScheme.outlineVariant),
+          ),
+          child: InkWell(
+            onTap: onTap,
+            borderRadius: BorderRadius.circular(12),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(
+                horizontal: 12,
+                vertical: 10,
               ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      title,
-                      style: theme.textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.w600,
-                      ),
+              child: Row(
+                children: [
+                  CircleAvatar(
+                    radius: 14,
+                    backgroundColor: theme.colorScheme.primaryContainer,
+                    child: Icon(
+                      icon,
+                      size: 16,
+                      color: theme.colorScheme.onPrimaryContainer,
                     ),
-                    const SizedBox(height: 4),
-                    Text(
-                      subtitle,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: theme.textTheme.bodyMedium?.copyWith(
-                        color: theme.colorScheme.onSurfaceVariant,
-                      ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          title,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: theme.textTheme.bodyMedium?.copyWith(
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          subtitle,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: theme.colorScheme.onSurfaceVariant,
+                          ),
+                        ),
+                      ],
                     ),
-                  ],
-                ),
+                  ),
+                  const SizedBox(width: 8),
+                  SizedBox(
+                    height: 32,
+                    child: OutlinedButton(
+                      onPressed: onTap,
+                      style: OutlinedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(horizontal: 12),
+                        visualDensity: VisualDensity.compact,
+                      ),
+                      child: Text(actionLabel),
+                    ),
+                  ),
+                ],
               ),
-              const SizedBox(width: 12),
-              OutlinedButton(onPressed: onTap, child: Text(actionLabel)),
-            ],
+            ),
           ),
         ),
       ),

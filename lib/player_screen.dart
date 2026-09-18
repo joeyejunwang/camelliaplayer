@@ -259,7 +259,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
             ? () => pm.playLastLyric()
             : noop,
         const SingleActivator(LogicalKeyboardKey.keyR): hasMedia
-            ? () => pm.cycleRepeatMode()
+            ? () => pm.setRepeatMode(LyricRepeatMode.repeatAll)
             : noop,
         const SingleActivator(LogicalKeyboardKey.keyL): () =>
             pm.toggleShowLyric(),

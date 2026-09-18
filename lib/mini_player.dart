@@ -10,24 +10,105 @@ import 'playback_manager.dart';
 /// Returns the appropriate icon for a given repeat mode.
 IconData _getRepeatModeIcon(LyricRepeatMode mode) {
   switch (mode) {
-    case LyricRepeatMode.sequential:
+    case LyricRepeatMode.noRepeat:
       return Icons.repeat_rounded;
-    case LyricRepeatMode.loopOne:
-      return Icons.repeat_on_rounded;
-    case LyricRepeatMode.loopTwice:
+    case LyricRepeatMode.repeatOne:
+      return Icons.repeat_rounded;
+    case LyricRepeatMode.repeatTwo:
       return Icons.repeat_one_rounded;
+    case LyricRepeatMode.repeatThree:
+      return Icons.repeat_one_rounded;
+    case LyricRepeatMode.repeatAll:
+      return Icons.repeat_on_rounded;
   }
 }
 
-/// Returns the tooltip text for a given repeat mode.
-String _getRepeatModeTooltip(LyricRepeatMode mode) {
-  switch (mode) {
-    case LyricRepeatMode.sequential:
-      return 'Play all lyrics sequentially (R) — click to loop current lyric';
-    case LyricRepeatMode.loopOne:
-      return 'Loop current lyric (R) — click to loop each lyric 2 times';
-    case LyricRepeatMode.loopTwice:
-      return 'Loop each lyric 2 times (R) — click to play all sequentially';
+/// Compact dropdown for selecting a [LyricRepeatMode]. Used by the
+/// mini-player to replace the previous cycle button.
+class _RepeatModeDropdown extends StatelessWidget {
+  const _RepeatModeDropdown({required this.repeatMode, required this.onChanged});
+
+  final LyricRepeatMode repeatMode;
+  final ValueChanged<LyricRepeatMode?> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return PopupMenuButton<LyricRepeatMode>(
+      tooltip: 'Lyric repeat mode (R)',
+      initialValue: repeatMode,
+      onSelected: onChanged,
+      itemBuilder: (context) => [
+        for (final mode in LyricRepeatMode.values)
+          PopupMenuItem<LyricRepeatMode>(
+            value: mode,
+            child: Row(
+              children: [
+                Icon(
+                  _getRepeatModeIcon(mode),
+                  size: 18,
+                  color: mode == repeatMode
+                      ? theme.colorScheme.primary
+                      : theme.colorScheme.onSurfaceVariant,
+                ),
+                const SizedBox(width: 10),
+                Text(
+                  mode.label,
+                  style: TextStyle(
+                    fontWeight: mode == repeatMode
+                        ? FontWeight.w600
+                        : FontWeight.w400,
+                    color: mode == repeatMode
+                        ? theme.colorScheme.primary
+                        : null,
+                  ),
+                ),
+              ],
+            ),
+          ),
+      ],
+      child: Container(
+        height: 36,
+        padding: const EdgeInsets.symmetric(horizontal: 10),
+        decoration: BoxDecoration(
+          color: repeatMode != LyricRepeatMode.noRepeat
+              ? theme.colorScheme.primaryContainer.withValues(alpha: 0.4)
+              : theme.colorScheme.surfaceContainerHighest,
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: theme.colorScheme.outlineVariant),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              _getRepeatModeIcon(repeatMode),
+              size: 16,
+              color: repeatMode != LyricRepeatMode.noRepeat
+                  ? theme.colorScheme.primary
+                  : theme.colorScheme.onSurfaceVariant,
+            ),
+            const SizedBox(width: 6),
+            Text(
+              repeatMode.shortLabel,
+              style: theme.textTheme.bodySmall?.copyWith(
+                fontWeight: FontWeight.w600,
+                color: repeatMode != LyricRepeatMode.noRepeat
+                    ? theme.colorScheme.primary
+                    : theme.colorScheme.onSurfaceVariant,
+              ),
+            ),
+            const SizedBox(width: 4),
+            Icon(
+              Icons.arrow_drop_down_rounded,
+              size: 18,
+              color: repeatMode != LyricRepeatMode.noRepeat
+                  ? theme.colorScheme.primary
+                  : theme.colorScheme.onSurfaceVariant,
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }
 
@@ -602,13 +683,16 @@ class MiniPlayerBar extends StatelessWidget {
                   else
                     const SizedBox(width: 152),
 
-                  // ── Loop mode switch (cycles through: sequential → loopOne → loopTwice) ──
-                  _MiniBtn(
-                    icon: _getRepeatModeIcon(pm.repeatMode),
-                    onPressed: hasMedia ? () => pm.cycleRepeatMode() : null,
-                    tooltip: _getRepeatModeTooltip(pm.repeatMode),
-                    isActive: pm.repeatMode != LyricRepeatMode.sequential,
-                  ),
+                  // ── Lyric repeat mode dropdown ──
+                  if (hasMedia)
+                    _RepeatModeDropdown(
+                      repeatMode: pm.repeatMode,
+                      onChanged: (mode) {
+                        if (mode != null) pm.setRepeatMode(mode);
+                      },
+                    )
+                  else
+                    const SizedBox(width: 36, height: 36),
                   const SizedBox(width: 4),
 
                   // ── Subtitle track toggle ──
