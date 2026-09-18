@@ -40,15 +40,46 @@ end
 post_install do |installer|
   installer.pods_project.targets.each do |target|
     flutter_additional_ios_build_settings(target)
-    # CocoaPods 1.16+ double-injects `POD_CONFIGURATION_*` macros into the
-    # compiler command line, which produces "macro redefined" warnings on
-    # every Pod. Strip the GCC_PREPROCESSOR_DEFINITIONS entries CocoaPods
-    # adds; the -D flag that Flutter injects is enough.
+  end
+
+  # CocoaPods 1.16+ double-injects `POD_CONFIGURATION_*` macros into each
+  # Pod's compile command line (once via the generated xcconfig and once
+  # via OTHER_CFLAGS), producing a wall of "macro redefined" warnings.
+  # Strip the duplicate from both places.
+  installer.pods_project.targets.each do |target|
     target.build_configurations.each do |config|
+      # 1. Strip from GCC_PREPROCESSOR_DEFINITIONS.
       defs = config.build_settings['GCC_PREPROCESSOR_DEFINITIONS'] || ['$(inherited)']
       defs = [defs] unless defs.is_a?(Array)
       defs.reject! { |d| d.to_s.start_with?('POD_CONFIGURATION_') }
       config.build_settings['GCC_PREPROCESSOR_DEFINITIONS'] = defs
+
+      # 2. Strip -D "POD_CONFIGURATION_..." from OTHER_CFLAGS / OTHER_CPLUSPLUSFLAGS.
+      ['OTHER_CFLAGS', 'OTHER_CPLUSPLUSFLAGS'].each do |key|
+        flags = config.build_settings[key] || ['$(inherited)']
+        flags = [flags] unless flags.is_a?(Array)
+        flags.reject! do |flag|
+          flag.to_s.include?('-DPOD_CONFIGURATION_') ||
+            flag.to_s.include?('-D "POD_CONFIGURATION_') ||
+            flag.to_s =~ /-DPOD_CONFIGURATION_\$\(CONFIG\)/
+        end
+        config.build_settings[key] = flags
+      end
+    end
+  end
+
+  # Suppress warnings for `PrivacyInfo.xcprivacy` files that some
+  # third-party packages ship without declaring them in their podspec
+  # resource files (notably volume_controller 3.7.1).
+  installer.pods_project.targets.each do |target|
+    target.build_configurations.each do |config|
+      unless config.build_settings['GCC_WARN_INHIBIT_ALL_WARNINGS'] == 'YES'
+        existing = config.build_settings['WARNING_CFLAGS'] || ['$(inherited)']
+        existing = [existing] unless existing.is_a?(Array)
+        existing << '-Wno-unknown-warning'
+        existing << '-Wno-unknown-warning-option'
+        config.build_settings['WARNING_CFLAGS'] = existing
+      end
     end
   end
 end
