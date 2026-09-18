@@ -8,5 +8,11 @@
 	<true/>
 	<key>com.apple.security.network.server</key>
 	<true/>
+	<!-- Required by file_picker so the NSOpenPanel can grant the app
+	     read access to the files the user selects. Without this, the
+	     open panel either fails to appear or returns nil silently when
+	     running a sandboxed build. -->
+	<key>com.apple.security.files.user-selected.read-only</key>
+	<true/>
 </dict>
 </plist>
