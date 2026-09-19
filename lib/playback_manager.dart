@@ -187,6 +187,14 @@ class PlaybackManager extends ChangeNotifier {
     _currentLyricRepeatCount = 0;
     notifyListeners();
     await player.open(media);
+    // Pause immediately after open so the playhead does not audibly
+    // walk through the intro before [_bootstrap] / [jumpToLyricIndex]
+    // can seek to the first (or resumed) lyric. media_kit starts
+    // playback on open by default; flipping it back to paused here
+    // keeps the audio silent until an explicit play() lands.
+    try {
+      await _player?.pause();
+    } catch (_) {}
   }
 
   /// Push the loaded subtitle list into the manager so the auto-advance

@@ -43,13 +43,16 @@ class PlayerScreen extends StatefulWidget {
 class _PlayerScreenState extends State<PlayerScreen> {
   late final VideoController _videoController;
   List<SubtitleEntry> _subtitles = const [];
-  // Backing store for the current playhead position. Exposed as a
-  // [ValueListenable] so widgets that depend on it can rebuild on
-  // their own without dragging the whole player subtree through
-  // setState every tick — that pattern was producing accessibility
-  // bridge churn ("Failed to update ui::AXTree") on Windows builds
-  // because every frame re-created large swaths of the widget tree.
-  final ValueNotifier<Duration> _position = ValueNotifier(Duration.zero);
+  /// Throttle for the position-driven setState. The player emits
+  /// position at the display refresh rate, but humans only need lyric
+  /// highlights to update a handful of times per second. Choking the
+  /// rebuild rate that low prevents a flood of identical rebuilds
+  /// from churning the accessibility tree on Windows ("Failed to
+  /// update ui::AXTree" when SemanticsNode ids get recycled
+  /// mid-update).
+  static const Duration _positionTickMinInterval = Duration(milliseconds: 80);
+  DateTime _lastPositionRebuild = DateTime.fromMillisecondsSinceEpoch(0);
+  Duration _position = Duration.zero;
   StreamSubscription<Duration>? _positionSub;
   final ScrollController _lyricsScrollController = ScrollController();
   int? _lastScrolledIndex;
@@ -89,12 +92,30 @@ class _PlayerScreenState extends State<PlayerScreen> {
 
     _bootstrap();
     _positionSub = pm.player.stream.position.listen((pos) {
-      // Update the listenable directly. Anything that rebuilds off
-      // [_position] will see the new value via its own
-      // ValueListenableBuilder; the player itself is NOT rebuilt on
-      // every position tick.
-      _position.value = pos;
+      // Always run the cue/scroll logic — it short-circuits when the
+      // cue index hasn't changed, so it's cheap even at 60 Hz.
       _scrollToCurrent();
+      // Throttle the heavier rebuilds: humans only need lyric
+      // highlights to update a handful of times per second, and
+      // pushing every position tick into a setState (or a
+      // ValueNotifier that drives a build) makes the Windows
+      // accessibility bridge throw "Failed to update ui::AXTree"
+      // warnings when SemanticsNode ids get recycled mid-update.
+      final now = DateTime.now();
+      if (now.difference(_lastPositionRebuild) <
+          _positionTickMinInterval) {
+        return;
+      }
+      _lastPositionRebuild = now;
+      if (!mounted) return;
+      // The setState covers all widgets that read _position in
+      // build() — the audio overlay and the lyrics panel. Anything
+      // finer-grained would require each subtree to wrap in its own
+      // ValueListenableBuilder, which complicates the build for a
+      // marginal perf win now that the tick is throttled.
+      setState(() {
+        _position = pos;
+      });
     });
   }
 
@@ -104,6 +125,10 @@ class _PlayerScreenState extends State<PlayerScreen> {
   /// subtitle file separately (and synchronously after open) lets
   /// auto-advance see the full lyric list the moment the user picks the
   /// video.
+  ///
+  /// The media is opened paused so the playhead never audibly flashes
+  /// through the intro before we land on the first lyric — the user
+  /// expects playback to start at the first line, not at 0.
   Future<void> _bootstrap() async {
     await _openMedia();
     await _loadSubtitles();
@@ -270,10 +295,17 @@ class _PlayerScreenState extends State<PlayerScreen> {
 
   int? get _currentIndex {
     for (int i = 0; i < _subtitles.length; i++) {
-      if (_subtitles[i].textAt(_position.value) != null) return i;
+      if (_subtitles[i].textAt(_position) != null) return i;
     }
     return null;
   }
+
+  /// The lyric line we should keep visually highlighted in the
+  /// right-hand lyrics list. This is "sticky" — it remembers the
+  /// last cue we were inside even when the playhead sits between
+  /// two cues (where [_currentIndex] returns null), so the active
+  /// highlight doesn't blink off every gap between lyrics.
+  int? _stickyHighlightIndex;
 
   void _seekToSubtitleIndex(int index) {
     if (index < 0 || index >= _subtitles.length) return;
@@ -306,7 +338,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
     } else {
       // No active cue — playhead sits between cues, before the first
       // one, or past the last one. Anchor on the playhead itself.
-      final pos = _position.value;
+      final pos = _position;
       if (direction > 0) {
         targetIdx = 0;
         for (int i = 0; i < subs.length; i++) {
@@ -334,6 +366,11 @@ class _PlayerScreenState extends State<PlayerScreen> {
     if (idx == null || !_lyricsScrollController.hasClients) return;
     if (idx == _lastScrolledIndex) return;
     _lastScrolledIndex = idx;
+    // Remember the cue we are now inside so the lyrics list keeps
+    // its highlight during the gaps between cues, where
+    // [_currentIndex] is null. Cleared when the user seeks or steps
+    // out of any cue.
+    _stickyHighlightIndex = idx;
     _persistLyricIndex(idx);
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -398,8 +435,14 @@ class _PlayerScreenState extends State<PlayerScreen> {
     pm.setLyricLoopSegment(start: entry.start, end: nextEntry?.start);
     pm.seek(entry.start);
     // Manual jumps (Home / End / ← / → / tapping a lyric line) land
-    // outside the position-tick path, so persist the new index here.
-    if (idx >= 0) _persistLyricIndex(idx);
+    // outside the position-tick path, so persist the new index here
+    // and snap the sticky highlight to it so the lyric list updates
+    // immediately instead of waiting for the next position tick.
+    if (idx >= 0) {
+      _stickyHighlightIndex = idx;
+      _lastScrolledIndex = idx;
+      _persistLyricIndex(idx);
+    }
   }
 
   @override
@@ -597,7 +640,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
                         width: 340,
                         child: _LyricsPanel(
                           subtitles: _subtitles,
-                          currentIndex: _currentIndex,
+                          currentIndex: _stickyHighlightIndex ?? _currentIndex,
                           scrollController: _lyricsScrollController,
                           onSeek: _seekToEntry,
                         ),
