@@ -85,6 +85,7 @@ class PlaybackManager extends ChangeNotifier {
   int _currentLyricRepeatCount = 0;
   int? _repeatLyricIndex;
   Duration? _automaticSeekTarget;
+  int _seekRevision = 0;
   VoidCallback? onPlayPreviousLyric;
   VoidCallback? onPlayNextLyric;
   VoidCallback? onPlayFirstLyric;
@@ -193,6 +194,7 @@ class PlaybackManager extends ChangeNotifier {
     _currentLyricRepeatCount = 0;
     _repeatLyricIndex = null;
     _automaticSeekTarget = null;
+    _seekRevision++;
     _subtitles = const [];
     notifyListeners();
     await player.open(media, play: false);
@@ -246,6 +248,7 @@ class PlaybackManager extends ChangeNotifier {
     _currentLyricRepeatCount = 0;
     _repeatLyricIndex = null;
     _automaticSeekTarget = null;
+    _seekRevision++;
     _setLoopForPosition(d);
     // Swallow any error from the underlying media_kit call so a failed
     // seek never crashes the UI; playback will resume from the next valid
@@ -327,11 +330,36 @@ class PlaybackManager extends ChangeNotifier {
 
   /// Sets the lyric repeat mode directly (used by the dropdown).
   void setRepeatMode(LyricRepeatMode mode) {
-    if (_repeatMode == mode) return;
+    final index = _subtitles.isEmpty
+        ? null
+        : (_repeatLyricIndex ??
+              (currentLyricIndex >= 0 ? currentLyricIndex : 0));
     _repeatMode = mode;
     _currentLyricRepeatCount = 0;
-    _repeatLyricIndex = null;
+    _repeatLyricIndex = index;
+    if (index != null) {
+      _setLoopForIndex(index);
+    }
     notifyListeners();
+    if (index != null && _hasMedia) {
+      unawaited(_restartLyric(index));
+    }
+  }
+
+  Future<void> _restartLyric(int index) async {
+    final target = _subtitles[index].start;
+    final revision = ++_seekRevision;
+    _automaticSeekTarget = target;
+    try {
+      await player.seek(target);
+      if (revision == _seekRevision && _hasMedia) {
+        await player.play();
+      }
+    } catch (_) {
+      if (revision == _seekRevision) {
+        _automaticSeekTarget = null;
+      }
+    }
   }
 
   void toggleShowLyric() {
@@ -402,12 +430,17 @@ class PlaybackManager extends ChangeNotifier {
 
   Future<void> _seekAutomatically(Duration target, {bool resume = false}) async {
     if (!_hasMedia || _automaticSeekTarget != null) return;
+    final revision = ++_seekRevision;
     _automaticSeekTarget = target;
     try {
       await player.seek(target);
-      if (resume && !_isPlaying) await player.play();
+      if (revision == _seekRevision && resume && !_isPlaying) {
+        await player.play();
+      }
     } catch (_) {
-      _automaticSeekTarget = null;
+      if (revision == _seekRevision) {
+        _automaticSeekTarget = null;
+      }
     }
   }
 
@@ -485,6 +518,7 @@ class PlaybackManager extends ChangeNotifier {
     _currentLyricRepeatCount = 0;
     _repeatLyricIndex = null;
     _automaticSeekTarget = null;
+    _seekRevision++;
     _subtitles = const [];
     player.stop();
     notifyListeners();

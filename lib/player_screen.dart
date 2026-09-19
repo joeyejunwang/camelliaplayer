@@ -158,14 +158,6 @@ class _PlayerScreenState extends State<PlayerScreen> {
     }
   }
 
-  /// Whether playback should start paused so we can seek to the first
-  /// lyric before any audio is heard. Returning true keeps the player
-  /// silent during [_bootstrap]; the seek to the first lyric + an
-  /// explicit play() then starts at the correct timestamp. Returning
-  /// false preserves the old behavior of opening and immediately
-  /// playing — used when there are no subtitles to anchor to.
-  bool get _openPaused => true;
-
   /// Resolves [widget.initialLyricIndex] to a safe in-range cue index.
   /// Returns 0 (the first lyric) when the caller didn't pass an index,
   /// the recorded index is null, or the saved cue is out of bounds.
@@ -247,7 +239,9 @@ class _PlayerScreenState extends State<PlayerScreen> {
           !stem.startsWith('$baseStem.') &&
           !stem.startsWith('$baseStem-') &&
           !stem.startsWith('${baseStem}_') &&
-          !stem.startsWith('$baseStem ')) continue;
+          !stem.startsWith('$baseStem ')) {
+        continue;
+      }
       // Score by shared prefix length so "song.pt" outranks "other".
       var score = 0;
       final max = stem.length < baseStem.length ? stem.length : baseStem.length;
@@ -390,7 +384,9 @@ class _PlayerScreenState extends State<PlayerScreen> {
     if (idx == null) return;
     _persistLyricIndex(idx);
     if (!PlaybackManager.instance.showLyric ||
-        !_lyricsScrollController.hasClients) return;
+        !_lyricsScrollController.hasClients) {
+      return;
+    }
     if (idx == _lastScrolledIndex) return;
     _lastScrolledIndex = idx;
     // Remember the cue we are now inside so the lyrics list keeps

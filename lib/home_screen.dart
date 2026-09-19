@@ -150,7 +150,9 @@ class _HomeScreenState extends State<HomeScreen> {
           !stem.startsWith('$baseStem.') &&
           !stem.startsWith('$baseStem-') &&
           !stem.startsWith('${baseStem}_') &&
-          !stem.startsWith('$baseStem ')) continue;
+          !stem.startsWith('$baseStem ')) {
+        continue;
+      }
       var score = 0;
       final max = stem.length < baseStem.length ? stem.length : baseStem.length;
       for (var i = 0; i < max; i++) {
