@@ -353,16 +353,31 @@ class _PlayerScreenState extends State<PlayerScreen> {
     final path = widget.videoFile?.path ?? widget.videoPath;
     final name = widget.videoName;
     if (path == null || path.isEmpty) return;
+    _scheduleWrite(path, name, index);
+  }
+
+  void _scheduleWrite(String path, String name, int index) {
     final record = LastPlayed(path: path, name: name, lyricIndex: index);
     _persistQueue = _persistQueue
         .then((_) => LastPlayedStore.write(record))
         .catchError((_) {});
   }
 
-  /// Flushes any in-flight persist write so the caller can be sure the
-  /// latest lyric index is on disk before reading it back. Returns
-  /// when every queued write has either completed or failed.
-  Future<void> flushPersistQueue() => _persistQueue;
+  /// One-shot pre-pop hook: synchronously queue a write for the active
+  /// cue (if any), then wait for it to land on disk before navigating
+  /// away. Guarantees the home screen reads back the cue the user was
+  /// actually on when they closed the player.
+  Future<void> persistAndFlushBeforeClose() async {
+    final idx = _currentIndex;
+    if (idx != null) {
+      final path = widget.videoFile?.path ?? widget.videoPath;
+      final name = widget.videoName;
+      if (path != null && path.isNotEmpty) {
+        _scheduleWrite(path, name, idx);
+      }
+    }
+    await _persistQueue;
+  }
 
   void _seekToEntry(SubtitleEntry entry) {
     final pm = PlaybackManager.instance;
@@ -516,7 +531,15 @@ class _PlayerScreenState extends State<PlayerScreen> {
                               color: Colors.black.withValues(alpha: 0.5),
                               borderRadius: BorderRadius.circular(20),
                               child: InkWell(
-                                onTap: () => Navigator.of(context).pop(),
+                                onTap: () async {
+                                  // Make sure the latest cue lands on
+                                  // disk before we close the route, so
+                                  // the home screen reads the right
+                                  // lyricIndex when it refreshes.
+                                  await persistAndFlushBeforeClose();
+                                  if (!context.mounted) return;
+                                  Navigator.of(context).pop();
+                                },
                                 borderRadius: BorderRadius.circular(20),
                                 child: const Padding(
                                   padding: EdgeInsets.all(8),

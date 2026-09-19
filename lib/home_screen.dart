@@ -85,13 +85,7 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
       ),
     );
-    if (!mounted) return;
-    // The player's persist queue writes happen on microtasks scheduled
-    // from dispose(); the read in _refreshLast is enqueued after them,
-    // but yield once anyway so any chained write completes before we
-    // read the on-disk record back.
-    await Future<void>.delayed(Duration.zero);
-    await _refreshLast();
+    if (mounted) await _refreshLast();
   }
 
   Future<void> _pick() async {
