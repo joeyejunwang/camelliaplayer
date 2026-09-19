@@ -10,11 +10,6 @@ import 'subtitle_loader.dart';
 /// before advancing to the next lyric. A null [times] means the current
 /// lyric loops forever without ever advancing.
 enum LyricRepeatMode {
-  /// No repeat logic: each lyric plays once and the player auto-advances
-  /// to the next (equivalent to [repeatOne] semantically, but signals
-  /// "do not loop" intent).
-  noRepeat(times: 1),
-
   /// Play the current lyric exactly once, then advance to the next.
   repeatOne(times: 1),
 
@@ -36,8 +31,6 @@ enum LyricRepeatMode {
   /// Human-readable label used in the dropdown.
   String get label {
     switch (this) {
-      case LyricRepeatMode.noRepeat:
-        return 'No repeat';
       case LyricRepeatMode.repeatOne:
         return 'Repeat 1× then next lyric 1×';
       case LyricRepeatMode.repeatTwo:
@@ -52,8 +45,6 @@ enum LyricRepeatMode {
   /// Short label used on the mini-player trigger button.
   String get shortLabel {
     switch (this) {
-      case LyricRepeatMode.noRepeat:
-        return 'Off';
       case LyricRepeatMode.repeatOne:
         return '×1';
       case LyricRepeatMode.repeatTwo:
@@ -181,6 +172,8 @@ class PlaybackManager extends ChangeNotifier {
         final target = _loopStart ?? Duration.zero;
         _seekAutomatically(target, resume: true);
       } else {
+        _repeatLyricIndex = null;
+        _currentLyricRepeatCount = 0;
         _position = Duration.zero;
         notifyListeners();
       }
@@ -299,6 +292,8 @@ class PlaybackManager extends ChangeNotifier {
       throw StateError('Lyric starts after the end of the media');
     }
     _setLoopForIndex(safe);
+    _repeatLyricIndex = safe;
+    _currentLyricRepeatCount = 0;
     for (var attempt = 0; attempt < 2; attempt++) {
       final arrived = Completer<void>();
       bool atTarget(Duration position) =>
@@ -396,9 +391,11 @@ class PlaybackManager extends ChangeNotifier {
       }
     }
     if (index < 0) {
+      _repeatLyricIndex = null;
       _loopStart = null;
       _loopEnd = null;
     } else {
+      _repeatLyricIndex = index;
       _setLoopForIndex(index);
     }
   }
@@ -418,7 +415,6 @@ class PlaybackManager extends ChangeNotifier {
   /// - repeatAll: snap playhead back to [_loopStart] when it crosses [_loopEnd]
   /// - any other mode with [LyricRepeatMode.times] set: play current lyric
   ///   that many times then advance to next lyric
-  /// - noRepeat: auto-advance through every lyric one by one
   void _maybeLoopSegment() {
     if (_repeatMode == LyricRepeatMode.repeatAll) {
       final start = _loopStart;
@@ -432,31 +428,28 @@ class PlaybackManager extends ChangeNotifier {
     _maybeAdvanceLyric();
   }
 
-  /// Auto-advance through every lyric in [_subtitles]. Finds the latest
-  /// lyric whose start is at or before the current position; if the
-  /// playhead has already crossed that lyric's end, handle repeat logic
-  /// based on current mode. Only runs while playing so a paused position
-  /// never surprises the user with a seek.
+  /// Auto-advance from the selected lyric. Keep its index across automatic
+  /// seeks: video decoders can report a position before the requested cue
+  /// while seeking to a keyframe, which must not reset the repeat count.
   void _maybeAdvanceLyric() {
     if (_subtitles.isEmpty) return;
     if (!_isPlaying) return;
     final subs = _subtitles;
 
-    int idx = -1;
-    for (int i = subs.length - 1; i >= 0; i--) {
-      if (subs[i].start <= _position) {
-        idx = i;
-        break;
+    var idx = _repeatLyricIndex;
+    if (idx == null) {
+      for (int i = subs.length - 1; i >= 0; i--) {
+        if (subs[i].start <= _position) {
+          idx = i;
+          _repeatLyricIndex = i;
+          break;
+        }
       }
     }
-    if (idx < 0) return;
-
-    if (_repeatLyricIndex != idx) {
-      _repeatLyricIndex = idx;
-      _currentLyricRepeatCount = 0;
-    }
+    if (idx == null) return;
 
     final current = subs[idx];
+    if (_position < current.start) return;
     if (_position >= current.end) {
       final required = _repeatMode.times;
       if (required != null && required > 1) {
@@ -469,11 +462,6 @@ class PlaybackManager extends ChangeNotifier {
         _currentLyricRepeatCount = 0;
       }
 
-      if (idx == subs.length - 1 &&
-          _repeatMode == LyricRepeatMode.noRepeat) {
-        pause();
-        return;
-      }
       final nextIdx = (idx + 1) % subs.length;
       final next = subs[nextIdx];
       _setLoopForIndex(nextIdx);

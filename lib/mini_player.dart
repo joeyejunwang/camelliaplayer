@@ -10,8 +10,6 @@ import 'playback_manager.dart';
 /// Returns the appropriate icon for a given repeat mode.
 IconData _getRepeatModeIcon(LyricRepeatMode mode) {
   switch (mode) {
-    case LyricRepeatMode.noRepeat:
-      return Icons.repeat_rounded;
     case LyricRepeatMode.repeatOne:
       return Icons.repeat_rounded;
     case LyricRepeatMode.repeatTwo:
@@ -71,9 +69,7 @@ class _RepeatModeDropdown extends StatelessWidget {
         height: 36,
         padding: const EdgeInsets.symmetric(horizontal: 10),
         decoration: BoxDecoration(
-          color: repeatMode != LyricRepeatMode.noRepeat
-              ? theme.colorScheme.primaryContainer.withValues(alpha: 0.4)
-              : theme.colorScheme.surfaceContainerHighest,
+          color: theme.colorScheme.primaryContainer.withValues(alpha: 0.4),
           borderRadius: BorderRadius.circular(8),
           border: Border.all(color: theme.colorScheme.outlineVariant),
         ),
@@ -83,27 +79,21 @@ class _RepeatModeDropdown extends StatelessWidget {
             Icon(
               _getRepeatModeIcon(repeatMode),
               size: 16,
-              color: repeatMode != LyricRepeatMode.noRepeat
-                  ? theme.colorScheme.primary
-                  : theme.colorScheme.onSurfaceVariant,
+              color: theme.colorScheme.primary,
             ),
             const SizedBox(width: 6),
             Text(
               repeatMode.shortLabel,
               style: theme.textTheme.bodySmall?.copyWith(
                 fontWeight: FontWeight.w600,
-                color: repeatMode != LyricRepeatMode.noRepeat
-                    ? theme.colorScheme.primary
-                    : theme.colorScheme.onSurfaceVariant,
+                color: theme.colorScheme.primary,
               ),
             ),
             const SizedBox(width: 4),
             Icon(
               Icons.arrow_drop_down_rounded,
               size: 18,
-              color: repeatMode != LyricRepeatMode.noRepeat
-                  ? theme.colorScheme.primary
-                  : theme.colorScheme.onSurfaceVariant,
+              color: theme.colorScheme.primary,
             ),
           ],
         ),

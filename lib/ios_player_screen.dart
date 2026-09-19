@@ -1011,9 +1011,7 @@ class _IOSRepeatModeDropdown extends StatelessWidget {
         height: 34,
         padding: const EdgeInsets.symmetric(horizontal: 10),
         decoration: BoxDecoration(
-          color: repeatMode != LyricRepeatMode.noRepeat
-              ? CupertinoColors.systemPink.withValues(alpha: 0.24)
-              : CupertinoColors.transparent,
+          color: CupertinoColors.systemPink.withValues(alpha: 0.24),
           borderRadius: BorderRadius.circular(9),
         ),
         child: Row(
@@ -1023,9 +1021,7 @@ class _IOSRepeatModeDropdown extends StatelessWidget {
               _iosRepeatIcon(repeatMode),
               size: 18,
               color: enabled
-                  ? (repeatMode != LyricRepeatMode.noRepeat
-                      ? CupertinoColors.systemPink
-                      : CupertinoColors.white)
+                  ? CupertinoColors.systemPink
                   : CupertinoColors.inactiveGray,
             ),
             const SizedBox(width: 6),
@@ -1035,9 +1031,7 @@ class _IOSRepeatModeDropdown extends StatelessWidget {
                 fontSize: 13,
                 fontWeight: FontWeight.w600,
                 color: enabled
-                    ? (repeatMode != LyricRepeatMode.noRepeat
-                        ? CupertinoColors.systemPink
-                        : CupertinoColors.white)
+                    ? CupertinoColors.systemPink
                     : CupertinoColors.inactiveGray,
               ),
             ),
@@ -1046,9 +1040,7 @@ class _IOSRepeatModeDropdown extends StatelessWidget {
               CupertinoIcons.chevron_down,
               size: 12,
               color: enabled
-                  ? (repeatMode != LyricRepeatMode.noRepeat
-                      ? CupertinoColors.systemPink
-                      : CupertinoColors.white)
+                  ? CupertinoColors.systemPink
                   : CupertinoColors.inactiveGray,
             ),
           ],
@@ -1059,8 +1051,6 @@ class _IOSRepeatModeDropdown extends StatelessWidget {
 
   IconData _iosRepeatIcon(LyricRepeatMode mode) {
     switch (mode) {
-      case LyricRepeatMode.noRepeat:
-        return CupertinoIcons.repeat;
       case LyricRepeatMode.repeatOne:
         return CupertinoIcons.repeat;
       case LyricRepeatMode.repeatTwo:
