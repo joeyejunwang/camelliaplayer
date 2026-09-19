@@ -130,7 +130,6 @@ class _HomeScreenState extends State<HomeScreen> {
     final baseStem = base
         .split(Platform.pathSeparator)
         .last
-        .replaceAll(RegExp(r'\.[^.]+$'), '')
         .toLowerCase();
     for (final entity in directory.listSync(followLinks: false)) {
       if (entity is! File) continue;
@@ -143,13 +142,18 @@ class _HomeScreenState extends State<HomeScreen> {
       final ext = name.substring(dot + 1);
       if (!_subtitleExts.contains(ext)) continue;
       final stem = name.substring(0, dot);
+      if (stem != baseStem &&
+          !stem.startsWith('$baseStem.') &&
+          !stem.startsWith('$baseStem-') &&
+          !stem.startsWith('${baseStem}_') &&
+          !stem.startsWith('$baseStem ')) continue;
       var score = 0;
       final max = stem.length < baseStem.length ? stem.length : baseStem.length;
       for (var i = 0; i < max; i++) {
         if (stem[i] != baseStem[i]) break;
         score++;
       }
-      if (score > bestScore) {
+      if (score > 0 && score > bestScore) {
         bestScore = score;
         best = entity;
       }

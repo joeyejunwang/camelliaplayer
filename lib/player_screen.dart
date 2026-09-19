@@ -92,6 +92,8 @@ class _PlayerScreenState extends State<PlayerScreen> {
 
     _bootstrap();
     _positionSub = pm.player.stream.position.listen((pos) {
+      if (!mounted) return;
+      _position = pos;
       // Always run the cue/scroll logic — it short-circuits when the
       // cue index hasn't changed, so it's cheap even at 60 Hz.
       _scrollToCurrent();
@@ -107,15 +109,12 @@ class _PlayerScreenState extends State<PlayerScreen> {
         return;
       }
       _lastPositionRebuild = now;
-      if (!mounted) return;
       // The setState covers all widgets that read _position in
       // build() — the audio overlay and the lyrics panel. Anything
       // finer-grained would require each subtree to wrap in its own
       // ValueListenableBuilder, which complicates the build for a
       // marginal perf win now that the tick is throttled.
-      setState(() {
-        _position = pos;
-      });
+      setState(() {});
     });
   }
 
@@ -236,8 +235,12 @@ class _PlayerScreenState extends State<PlayerScreen> {
       final baseStem = base
           .split(Platform.pathSeparator)
           .last
-          .replaceAll(RegExp(r'\.[^.]+$'), '')
           .toLowerCase();
+      if (stem != baseStem &&
+          !stem.startsWith('$baseStem.') &&
+          !stem.startsWith('$baseStem-') &&
+          !stem.startsWith('${baseStem}_') &&
+          !stem.startsWith('$baseStem ')) continue;
       // Score by shared prefix length so "song.pt" outranks "other".
       var score = 0;
       final max = stem.length < baseStem.length ? stem.length : baseStem.length;
@@ -245,7 +248,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
         if (stem[i] != baseStem[i]) break;
         score++;
       }
-      if (score > bestScore) {
+      if (score > 0 && score > bestScore) {
         bestScore = score;
         best = entity;
       }
@@ -298,6 +301,12 @@ class _PlayerScreenState extends State<PlayerScreen> {
     // window-close and route-teardown paths where no handler fires.
     final idx = _currentIndex;
     if (idx != null) _persistLyricIndex(idx);
+    final pm = PlaybackManager.instance;
+    pm.onPlayPreviousLyric = null;
+    pm.onPlayNextLyric = null;
+    pm.onPlayFirstLyric = null;
+    pm.onPlayLastLyric = null;
+    pm.stop();
     super.dispose();
   }
 
@@ -369,9 +378,11 @@ class _PlayerScreenState extends State<PlayerScreen> {
   }
 
   void _scrollToCurrent() {
-    if (!PlaybackManager.instance.showLyric) return;
     final idx = _currentIndex;
-    if (idx == null || !_lyricsScrollController.hasClients) return;
+    if (idx == null) return;
+    _persistLyricIndex(idx);
+    if (!PlaybackManager.instance.showLyric ||
+        !_lyricsScrollController.hasClients) return;
     if (idx == _lastScrolledIndex) return;
     _lastScrolledIndex = idx;
     // Remember the cue we are now inside so the lyrics list keeps
@@ -379,7 +390,6 @@ class _PlayerScreenState extends State<PlayerScreen> {
     // [_currentIndex] is null. Cleared when the user seeks or steps
     // out of any cue.
     _stickyHighlightIndex = idx;
-    _persistLyricIndex(idx);
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted || !_lyricsScrollController.hasClients) return;
@@ -499,7 +509,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
           backgroundColor: AppColors.videoBackdrop,
           body: Column(
             children: [
-              const CustomTitleBar(),
+              CustomTitleBar(onClose: persistAndFlushBeforeClose),
               Expanded(
                 child: Row(
                   children: [

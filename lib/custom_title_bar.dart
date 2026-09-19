@@ -5,7 +5,9 @@ import 'app_colors.dart';
 
 /// Custom window title bar that replaces the native Windows chrome.
 class CustomTitleBar extends StatefulWidget {
-  const CustomTitleBar({super.key});
+  const CustomTitleBar({super.key, required this.onClose});
+
+  final Future<void> Function() onClose;
 
   @override
   State<CustomTitleBar> createState() => _CustomTitleBarState();
@@ -131,7 +133,10 @@ class _CustomTitleBarState extends State<CustomTitleBar> with WindowListener {
               tooltip: 'Close',
               hoverColor: closeHover,
               hoverIconColor: Colors.white,
-              onTap: () => windowManager.close(),
+              onTap: () async {
+                await widget.onClose();
+                await windowManager.close();
+              },
             ),
           ],
         ),

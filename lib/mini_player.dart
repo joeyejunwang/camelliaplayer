@@ -754,7 +754,7 @@ class MiniPlayerBar extends StatelessWidget {
                                 if (target >= 0 &&
                                     target < pm.subtitles.length) {
                                   final entry = pm.subtitles[target];
-                                  pm.player.seek(entry.start);
+                                  pm.seek(entry.start);
                                 }
                               },
                             ),

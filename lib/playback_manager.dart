@@ -85,12 +85,15 @@ class PlaybackManager extends ChangeNotifier {
   bool _isPlaying = false;
   bool _isMuted = false;
   double _volume = 1.0;
+  double _lastAudibleVolume = 1.0;
   bool _hasMedia = false;
   String _mediaTitle = 'No media playing';
   LyricRepeatMode _repeatMode = LyricRepeatMode.repeatAll;
   bool _showSubtitleTrack = true;
   bool _showLyric = true;
   int _currentLyricRepeatCount = 0;
+  int? _repeatLyricIndex;
+  Duration? _automaticSeekTarget;
   VoidCallback? onPlayPreviousLyric;
   VoidCallback? onPlayNextLyric;
   VoidCallback? onPlayFirstLyric;
@@ -146,7 +149,16 @@ class PlaybackManager extends ChangeNotifier {
     final p = _player!;
     _positionSub = p.stream.position.listen((pos) {
       _position = pos;
-      _maybeLoopSegment();
+      final target = _automaticSeekTarget;
+      if (target != null) {
+        // Ignore old position ticks until the automatic seek has landed.
+        // Otherwise a short cue can count the same boundary several times.
+        if ((pos - target).abs() <= const Duration(milliseconds: 250)) {
+          _automaticSeekTarget = null;
+        }
+      } else {
+        _maybeLoopSegment();
+      }
       notifyListeners();
     });
     _durationSub = p.stream.duration.listen((dur) {
@@ -160,13 +172,13 @@ class PlaybackManager extends ChangeNotifier {
     _volumeSub = p.stream.volume.listen((vol) {
       _volume = vol / 100.0;
       _isMuted = vol == 0;
+      if (vol > 0) _lastAudibleVolume = _volume;
       notifyListeners();
     });
     _completedSub = p.stream.completed.listen((_) {
       if (_repeatMode == LyricRepeatMode.repeatAll) {
         final target = _loopStart ?? Duration.zero;
-        seek(target);
-        if (!_isPlaying) play();
+        _seekAutomatically(target, resume: true);
       } else {
         _position = Duration.zero;
         notifyListeners();
@@ -175,7 +187,7 @@ class PlaybackManager extends ChangeNotifier {
   }
 
   Future<void> setMedia(Media media, {String? title}) async {
-    _hasMedia = true;
+    _hasMedia = false;
     _mediaTitle = title ?? media.uri.toString();
     _position = Duration.zero;
     _duration = Duration.zero;
@@ -185,16 +197,15 @@ class PlaybackManager extends ChangeNotifier {
     _loopStart = null;
     _loopEnd = null;
     _currentLyricRepeatCount = 0;
+    _repeatLyricIndex = null;
+    _automaticSeekTarget = null;
+    _subtitles = const [];
     notifyListeners();
-    await player.open(media);
-    // Pause immediately after open so the playhead does not audibly
-    // walk through the intro before [_bootstrap] / [jumpToLyricIndex]
-    // can seek to the first (or resumed) lyric. media_kit starts
-    // playback on open by default; flipping it back to paused here
-    // keeps the audio silent until an explicit play() lands.
-    try {
-      await _player?.pause();
-    } catch (_) {}
+    await player.open(media, play: false);
+    _hasMedia = true;
+    notifyListeners();
+    // Opening paused keeps the intro silent until the first or resumed
+    // lyric has been selected and an explicit play() begins.
   }
 
   /// Push the loaded subtitle list into the manager so the auto-advance
@@ -202,6 +213,9 @@ class PlaybackManager extends ChangeNotifier {
   /// once the .srt file has finished parsing.
   void setSubtitles(List<SubtitleEntry> subs) {
     _subtitles = subs;
+    _currentLyricRepeatCount = 0;
+    _repeatLyricIndex = null;
+    notifyListeners();
   }
 
   void setTitle(String title) {
@@ -213,17 +227,16 @@ class PlaybackManager extends ChangeNotifier {
     player.setVolume(vol * 100);
     _volume = vol.clamp(0.0, 1.0);
     _isMuted = vol == 0;
+    if (vol > 0) _lastAudibleVolume = _volume;
     notifyListeners();
   }
 
   void toggleMute() {
     if (_isMuted) {
-      player.setVolume(_volume > 0 ? _volume * 100 : 50);
+      setVolume(_lastAudibleVolume);
     } else {
-      player.setVolume(0);
+      setVolume(0);
     }
-    _isMuted = !_isMuted;
-    notifyListeners();
   }
 
   void play() => player.play();
@@ -236,6 +249,10 @@ class PlaybackManager extends ChangeNotifier {
   /// lifecycle hooks like didUpdateWidget → setLyricLoopSegment.
   void seek(Duration d) {
     if (!_hasMedia) return;
+    _currentLyricRepeatCount = 0;
+    _repeatLyricIndex = null;
+    _automaticSeekTarget = null;
+    _setLoopForPosition(d);
     // Swallow any error from the underlying media_kit call so a failed
     // seek never crashes the UI; playback will resume from the next valid
     // position tick.
@@ -256,7 +273,6 @@ class PlaybackManager extends ChangeNotifier {
   /// start playback from position 0. Used when a file is opened — the
   /// user expects the first lyric, not the intro, to play immediately.
   Future<void> jumpToFirstLyricAndPlay() async {
-    onPlayFirstLyric?.call();
     await seekFirstLyricAndPlay();
   }
 
@@ -268,6 +284,7 @@ class PlaybackManager extends ChangeNotifier {
     final subs = _subtitles;
     if (subs.isEmpty || !_hasMedia) return;
     final safe = index.clamp(0, subs.length - 1);
+    _setLoopForIndex(safe);
     try {
       await _player?.seek(subs[safe].start);
     } catch (_) {}
@@ -280,6 +297,7 @@ class PlaybackManager extends ChangeNotifier {
   Future<void> seekFirstLyricAndPlay() async {
     final subs = _subtitles;
     if (subs.isEmpty || !_hasMedia) return;
+    _setLoopForIndex(0);
     try {
       await _player?.seek(subs.first.start);
     } catch (_) {}
@@ -291,12 +309,8 @@ class PlaybackManager extends ChangeNotifier {
     if (_repeatMode == mode) return;
     _repeatMode = mode;
     _currentLyricRepeatCount = 0;
+    _repeatLyricIndex = null;
     notifyListeners();
-    // If we're enabling repeatAll at the end of the track, kick playback off.
-    if (_repeatMode == LyricRepeatMode.repeatAll && !_isPlaying && _hasMedia) {
-      seek(_loopStart ?? Duration.zero);
-      play();
-    }
   }
 
   void toggleShowLyric() {
@@ -334,6 +348,44 @@ class PlaybackManager extends ChangeNotifier {
   void setLyricLoopSegment({Duration? start, Duration? end}) {
     _loopStart = start;
     _loopEnd = end;
+    _currentLyricRepeatCount = 0;
+    _repeatLyricIndex = null;
+  }
+
+  void _setLoopForIndex(int index) {
+    final entry = _subtitles[index];
+    final end = index + 1 < _subtitles.length
+        ? _subtitles[index + 1].start
+        : entry.end;
+    _loopStart = entry.start;
+    _loopEnd = end > entry.start ? end : null;
+  }
+
+  void _setLoopForPosition(Duration position) {
+    int index = -1;
+    for (int i = _subtitles.length - 1; i >= 0; i--) {
+      if (_subtitles[i].start <= position) {
+        index = i;
+        break;
+      }
+    }
+    if (index < 0) {
+      _loopStart = null;
+      _loopEnd = null;
+    } else {
+      _setLoopForIndex(index);
+    }
+  }
+
+  Future<void> _seekAutomatically(Duration target, {bool resume = false}) async {
+    if (!_hasMedia || _automaticSeekTarget != null) return;
+    _automaticSeekTarget = target;
+    try {
+      await player.seek(target);
+      if (resume && !_isPlaying) await player.play();
+    } catch (_) {
+      _automaticSeekTarget = null;
+    }
   }
 
   /// Position-tick hook. Handles:
@@ -347,7 +399,7 @@ class PlaybackManager extends ChangeNotifier {
       final end = _loopEnd;
       if (start == null) return;
       if (end != null && end > start && _position >= end) {
-        seek(start);
+        _seekAutomatically(start);
       }
       return;
     }
@@ -373,6 +425,11 @@ class PlaybackManager extends ChangeNotifier {
     }
     if (idx < 0) return;
 
+    if (_repeatLyricIndex != idx) {
+      _repeatLyricIndex = idx;
+      _currentLyricRepeatCount = 0;
+    }
+
     final current = subs[idx];
     if (_position >= current.end) {
       final required = _repeatMode.times;
@@ -380,20 +437,24 @@ class PlaybackManager extends ChangeNotifier {
         // Loop current lyric N times total before advancing.
         _currentLyricRepeatCount++;
         if (_currentLyricRepeatCount < required) {
-          seek(current.start);
+          _seekAutomatically(current.start);
           return;
         }
         _currentLyricRepeatCount = 0;
       }
 
+      if (idx == subs.length - 1 &&
+          _repeatMode == LyricRepeatMode.noRepeat) {
+        pause();
+        return;
+      }
       final nextIdx = (idx + 1) % subs.length;
       final next = subs[nextIdx];
-      _loopStart = next.start;
-      _loopEnd = nextIdx + 1 < subs.length ? subs[nextIdx + 1].start : null;
-      seek(next.start);
+      _setLoopForIndex(nextIdx);
+      _repeatLyricIndex = nextIdx;
+      _seekAutomatically(next.start);
     } else {
-      _loopStart = current.start;
-      _loopEnd = idx + 1 < subs.length ? subs[idx + 1].start : null;
+      _setLoopForIndex(idx);
     }
   }
 
@@ -408,6 +469,9 @@ class PlaybackManager extends ChangeNotifier {
     _loopStart = null;
     _loopEnd = null;
     _currentLyricRepeatCount = 0;
+    _repeatLyricIndex = null;
+    _automaticSeekTarget = null;
+    _subtitles = const [];
     player.stop();
     notifyListeners();
   }
