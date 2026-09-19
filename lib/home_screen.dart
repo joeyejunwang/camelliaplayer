@@ -424,6 +424,21 @@ class _LastPlayed extends StatelessWidget {
                     fontWeight: FontWeight.w600,
                   ),
                 ),
+                // Show the saved lyric cue index when one was recorded
+                // — gives the user a hint about where playback will
+                // resume when they tap the play button.
+                if (record.lyricIndex != null) ...[
+                  const SizedBox(height: 2),
+                  Text(
+                    'Resume at lyric #${record.lyricIndex! + 1}',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: t.textTheme.labelSmall?.copyWith(
+                      color: cs.primary,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ],
               ],
             ),
           ),

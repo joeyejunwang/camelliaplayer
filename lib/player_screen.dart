@@ -43,7 +43,13 @@ class PlayerScreen extends StatefulWidget {
 class _PlayerScreenState extends State<PlayerScreen> {
   late final VideoController _videoController;
   List<SubtitleEntry> _subtitles = const [];
-  Duration _position = Duration.zero;
+  // Backing store for the current playhead position. Exposed as a
+  // [ValueListenable] so widgets that depend on it can rebuild on
+  // their own without dragging the whole player subtree through
+  // setState every tick — that pattern was producing accessibility
+  // bridge churn ("Failed to update ui::AXTree") on Windows builds
+  // because every frame re-created large swaths of the widget tree.
+  final ValueNotifier<Duration> _position = ValueNotifier(Duration.zero);
   StreamSubscription<Duration>? _positionSub;
   final ScrollController _lyricsScrollController = ScrollController();
   int? _lastScrolledIndex;
@@ -83,8 +89,11 @@ class _PlayerScreenState extends State<PlayerScreen> {
 
     _bootstrap();
     _positionSub = pm.player.stream.position.listen((pos) {
-      if (!mounted) return;
-      setState(() => _position = pos);
+      // Update the listenable directly. Anything that rebuilds off
+      // [_position] will see the new value via its own
+      // ValueListenableBuilder; the player itself is NOT rebuilt on
+      // every position tick.
+      _position.value = pos;
       _scrollToCurrent();
     });
   }
@@ -250,9 +259,10 @@ class _PlayerScreenState extends State<PlayerScreen> {
   void dispose() {
     _positionSub?.cancel();
     _lyricsScrollController.dispose();
-    // Flush the most recent lyric index synchronously enough that the
-    // next home-screen refresh reads the cue the user was actually on
-    // when they closed the player, not a stale value from before.
+    // Best-effort: queue a final write of the cue the playhead is on
+    // right now. The back button handler awaits the queue before
+    // popping, so in the common case this is a no-op; it covers the
+    // window-close and route-teardown paths where no handler fires.
     final idx = _currentIndex;
     if (idx != null) _persistLyricIndex(idx);
     super.dispose();
@@ -260,7 +270,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
 
   int? get _currentIndex {
     for (int i = 0; i < _subtitles.length; i++) {
-      if (_subtitles[i].textAt(_position) != null) return i;
+      if (_subtitles[i].textAt(_position.value) != null) return i;
     }
     return null;
   }
@@ -296,7 +306,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
     } else {
       // No active cue — playhead sits between cues, before the first
       // one, or past the last one. Anchor on the playhead itself.
-      final pos = _position;
+      final pos = _position.value;
       if (direction > 0) {
         targetIdx = 0;
         for (int i = 0; i < subs.length; i++) {
