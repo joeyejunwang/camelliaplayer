@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:window_manager/window_manager.dart';
 
+import 'app_colors.dart';
+
 /// Custom window title bar that replaces the native Windows chrome.
 class CustomTitleBar extends StatefulWidget {
   const CustomTitleBar({super.key});
@@ -58,41 +60,48 @@ class _CustomTitleBarState extends State<CustomTitleBar> with WindowListener {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
+    final cs = theme.colorScheme;
 
-    // Colours per theme brightness
-    final bgColor = isDark ? const Color(0xFF1C1B1F) : const Color(0xFFF6F2F4);
-    final textColor = isDark ? Colors.white : const Color(0xFF1C1B1F);
-    final btnHover = isDark
-        ? Colors.white.withValues(alpha: 0.08)
-        : Colors.black.withValues(alpha: 0.06);
-    final closeHover = isDark
-        ? const Color(0xFFE81123)
-        : const Color(0xFFE81123);
+    // Pull all colors from the themed scheme so the title bar follows
+    // the camellia palette instead of being a hardcoded gray strip.
+    final bgColor = cs.surface;
+    final textColor = cs.onSurface;
+    final btnHover = cs.onSurface.withValues(alpha: 0.08);
+    final closeHover = AppColors.camelliaDeep;
 
     return GestureDetector(
       onPanStart: (_) => _handleDrag(),
       onDoubleTap: _handleDoubleTap,
       child: Container(
         height: 40,
-        color: bgColor,
+        decoration: BoxDecoration(
+          color: bgColor,
+          border: Border(
+            bottom: BorderSide(color: cs.outlineVariant, width: 0.5),
+          ),
+        ),
         child: Row(
           children: [
             const SizedBox(width: 12),
-            // App icon
-            Icon(
-              Icons.play_circle_fill_rounded,
-              size: 18,
-              color: theme.colorScheme.primary,
+            // Real app icon — same image used on the home screen header.
+            ClipRRect(
+              borderRadius: BorderRadius.circular(6),
+              child: Image.asset(
+                'assets/branding/camellia_player_icon_1024.png',
+                width: 22,
+                height: 22,
+                fit: BoxFit.cover,
+              ),
             ),
-            const SizedBox(width: 8),
+            const SizedBox(width: 10),
             // Title
             Text(
               'Camellia Player',
               style: TextStyle(
                 color: textColor,
                 fontSize: 13,
-                fontWeight: FontWeight.w500,
+                fontWeight: FontWeight.w600,
+                letterSpacing: 0.2,
               ),
             ),
             const Spacer(),

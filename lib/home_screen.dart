@@ -4,24 +4,14 @@ import 'package:desktop_drop/desktop_drop.dart';
 import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart';
 
+import 'app_colors.dart';
 import 'last_played.dart';
 import 'player_screen.dart';
 
-/// Extensions accepted for drag-and-drop / file picker.
-const _supportedExts = [
-  'mp3',
-  'aac',
-  'wav',
-  'mp4',
-  'm4v',
-  'mkv',
-  'webm',
-  'mov',
-  'avi',
-  'wmv',
+const _mediaExts = [
+  'mp3', 'aac', 'wav',
+  'mp4', 'm4v', 'mkv', 'webm', 'mov', 'avi', 'wmv',
 ];
-
-/// Subtitle candidates looked up next to the media file (basename + ext).
 const _subtitleExts = ['srt', 'vtt', 'ass', 'ssa'];
 
 class HomeScreen extends StatefulWidget {
@@ -34,18 +24,17 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   String? _videoPath;
   LastPlayed? _lastPlayed;
-  bool _isDragHovering = false;
+  bool _dragging = false;
 
   @override
   void initState() {
     super.initState();
-    _refreshLastPlayed();
+    _refreshLast();
   }
 
-  Future<void> _refreshLastPlayed() async {
+  Future<void> _refreshLast() async {
     final lp = await LastPlayedStore.read();
     if (!mounted) return;
-    // Hide entries whose backing file no longer exists on disk.
     if (lp != null && !File(lp.path).existsSync()) {
       await LastPlayedStore.clear();
       setState(() => _lastPlayed = null);
@@ -54,155 +43,199 @@ class _HomeScreenState extends State<HomeScreen> {
     setState(() => _lastPlayed = lp);
   }
 
-  /// Open a media file: locate a sibling subtitle (if any), record it as
-  /// last-played, then navigate to [PlayerScreen].
-  Future<void> _openMediaFile(String absolutePath) async {
-    final file = File(absolutePath);
+  Future<void> _openMedia(String path) async {
+    final file = File(path);
     if (!file.existsSync()) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('File not found: $absolutePath')));
+      _toast('File not found: $path');
       return;
     }
-
-    final displayName = file.path.split(Platform.pathSeparator).last;
-    final baseName = file.path.replaceAll(RegExp(r'\.[^.]+$'), '');
-
-    File? foundSubtitle;
-    for (final ext in _subtitleExts) {
-      final subPath = '$baseName.$ext';
-      final subFile = File(subPath);
-      if (subFile.existsSync()) {
-        foundSubtitle = subFile;
+    final name = file.path.split(Platform.pathSeparator).last;
+    final base = file.path.replaceAll(RegExp(r'\.[^.]+$'), '');
+    File? subtitle;
+    for (final e in _subtitleExts) {
+      final f = File('$base.$e');
+      if (f.existsSync()) {
+        subtitle = f;
         break;
       }
     }
-
     await LastPlayedStore.write(
-      LastPlayed(
-        path: absolutePath,
-        name: displayName,
-        timestamp: DateTime.now(),
-      ),
+      LastPlayed(path: path, name: name, timestamp: DateTime.now()),
     );
-
-    setState(() => _videoPath = displayName);
-
     if (!mounted) return;
+    setState(() => _videoPath = name);
     await Navigator.of(context).push(
       MaterialPageRoute(
         builder: (_) => PlayerScreen(
           videoFile: file,
-          videoPath: displayName,
-          videoName: displayName,
-          subtitleFile: foundSubtitle,
-          subtitlePath: foundSubtitle?.path.split(Platform.pathSeparator).last,
+          videoPath: name,
+          videoName: name,
+          subtitleFile: subtitle,
+          subtitlePath: subtitle?.path.split(Platform.pathSeparator).last,
         ),
       ),
     );
-    // Refresh last-played when the user returns so deletions / changes
-    // are reflected back on the home screen.
-    if (mounted) await _refreshLastPlayed();
+    if (mounted) await _refreshLast();
   }
 
-  Future<void> _pickVideo() async {
-    const typeGroup = XTypeGroup(
-      label: 'Audio and video',
-      extensions: _supportedExts,
+  Future<void> _pick() async {
+    final f = await openFile(
+      acceptedTypeGroups: [
+        const XTypeGroup(label: 'Audio and video', extensions: _mediaExts),
+      ],
     );
-    final XFile? file = await openFile(acceptedTypeGroups: [typeGroup]);
-    if (file == null || !mounted) return;
-    await _openMediaFile(file.path);
+    if (f != null && mounted) await _openMedia(f.path);
   }
 
-  /// Called by [DropTarget] when files are dropped onto the home screen.
-  Future<void> _handleDropped(List<XFile> xfiles) async {
-    if (xfiles.isEmpty) return;
-    // Pick the first file with a supported extension.
-    XFile? chosen;
-    for (final xf in xfiles) {
-      final ext = xf.name.contains('.')
-          ? xf.name.split('.').last.toLowerCase()
-          : '';
-      if (_supportedExts.contains(ext)) {
-        chosen = xf;
-        break;
-      }
-    }
-    if (chosen == null) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            'No supported media file in the drop. Try .mp4, .mp3, .aac, .wav, …',
-          ),
-        ),
-      );
+  Future<void> _onDrop(List<XFile> xfiles) async {
+    final pick = xfiles.firstWhere(
+      (x) => _mediaExts.contains(
+        x.name.contains('.') ? x.name.split('.').last.toLowerCase() : '',
+      ),
+      orElse: () => XFile(''),
+    );
+    if (pick.path.isEmpty) {
+      _toast('No supported media file in the drop.');
       return;
     }
-    await _openMediaFile(chosen.path);
+    await _openMedia(pick.path);
+  }
+
+  void _toast(String msg) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(msg)),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-
+    final t = Theme.of(context);
+    final cs = t.colorScheme;
     return Scaffold(
-      body: SafeArea(
+      body: Container(
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              Color(0xFF120A10), // deep camellia shadow
+              AppColors.panelDark,
+              Color(0xFF2A1419), // subtle warm wash toward the bottom
+            ],
+            stops: [0.0, 0.6, 1.0],
+          ),
+        ),
         child: DropTarget(
-          onDragEntered: (_) => setState(() => _isDragHovering = true),
-          onDragExited: (_) => setState(() => _isDragHovering = false),
-          onDragDone: (details) async {
-            setState(() => _isDragHovering = false);
-            await _handleDropped(details.files);
+          onDragEntered: (_) => setState(() => _dragging = true),
+          onDragExited: (_) => setState(() => _dragging = false),
+          onDragDone: (d) async {
+            setState(() => _dragging = false);
+            await _onDrop(d.files);
           },
-          child: Stack(
-            children: [
-              Center(
-                child: ConstrainedBox(
-                  constraints: const BoxConstraints(maxWidth: 520),
-                  child: SingleChildScrollView(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 24,
-                      vertical: 32,
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        const SizedBox(height: 12),
-                        _Header(theme: theme),
-                        const SizedBox(height: 32),
-                        _PickerCard(
-                          title: 'Audio or video file',
-                          subtitle: _videoPath ??
-                              'Pick or drop an .mp4, .mp3, .aac, .wav, …',
-                          icon: Icons.perm_media_outlined,
-                          actionLabel: 'Choose file',
-                          onTap: _pickVideo,
+        child: Stack(
+          children: [
+            Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 440),
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 28,
+                    vertical: 40,
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      _Header(theme: t),
+                      const SizedBox(height: 36),
+                      _Card(
+                        onTap: _pick,
+                        child: Row(
+                          children: [
+                            _IconBadge(
+                              icon: _videoPath == null
+                                  ? Icons.folder_open_rounded
+                                  : Icons.movie_rounded,
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Text(
+                                    _videoPath ?? 'Choose a media file',
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: t.textTheme.titleSmall?.copyWith(
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 2),
+                                  Text(
+                                    'Audio & video (.mp4, .mp3, .aac, .wav, …)',
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: t.textTheme.bodySmall?.copyWith(
+                                      color: cs.onSurfaceVariant,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            FilledButton.tonalIcon(
+                              onPressed: _pick,
+                              icon: const Icon(Icons.add_rounded, size: 18),
+                              label: const Text('Browse'),
+                              style: FilledButton.styleFrom(
+                                visualDensity: VisualDensity.compact,
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 14,
+                                  vertical: 8,
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
-                        const SizedBox(height: 16),
-                        _DropHint(theme: theme, active: _isDragHovering),
-                        if (_lastPlayed != null) ...[
-                          const SizedBox(height: 16),
-                          _LastPlayedCard(
-                            theme: theme,
-                            record: _lastPlayed!,
-                            onReplay: () =>
-                                _openMediaFile(_lastPlayed!.path),
-                          ),
-                        ],
-                        const SizedBox(height: 24),
-                        _TipBanner(theme: theme),
+                      ),
+                      const SizedBox(height: 12),
+                      if (_lastPlayed != null) ...[
+                        _LastPlayed(
+                          record: _lastPlayed!,
+                          onPlay: () => _openMedia(_lastPlayed!.path),
+                        ),
+                        const SizedBox(height: 12),
                       ],
-                    ),
+                      _Card(
+                        child: Row(
+                          children: [
+                            _IconBadge(
+                              icon: Icons.swipe_down_alt_rounded,
+                              tint: cs.tertiary,
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Text(
+                                '…or drag & drop a file anywhere',
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: t.textTheme.bodySmall?.copyWith(
+                                  color: cs.onSurfaceVariant,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               ),
-              if (_isDragHovering) _DropOverlay(theme: theme),
-            ],
-          ),
+            ),
+            if (_dragging) const _DropOverlay(),
+          ],
         ),
+      ),
       ),
     );
   }
@@ -214,37 +247,35 @@ class _Header extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cs = theme.colorScheme;
     return Row(
       children: [
-        Container(
-          height: 56,
-          width: 56,
-          decoration: BoxDecoration(
-            color: theme.colorScheme.primaryContainer,
-            borderRadius: BorderRadius.circular(16),
-          ),
-          child: Icon(
-            Icons.play_circle_fill_rounded,
-            size: 36,
-            color: theme.colorScheme.onPrimaryContainer,
+        ClipRRect(
+          borderRadius: BorderRadius.circular(14),
+          child: Image.asset(
+            'assets/branding/camellia_player_icon_1024.png',
+            width: 48,
+            height: 48,
+            fit: BoxFit.cover,
           ),
         ),
-        const SizedBox(width: 16),
+        const SizedBox(width: 14),
         Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
                 'Camellia Player',
-                style: theme.textTheme.headlineSmall?.copyWith(
-                  fontWeight: FontWeight.w600,
+                style: theme.textTheme.titleLarge?.copyWith(
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: -0.3,
                 ),
               ),
-              const SizedBox(height: 4),
+              const SizedBox(height: 2),
               Text(
-                'A simple Flutter audio and video player for Windows and macOS.',
-                style: theme.textTheme.bodyMedium?.copyWith(
-                  color: theme.colorScheme.onSurfaceVariant,
+                'A simple audio & video player',
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: cs.onSurfaceVariant,
                 ),
               ),
             ],
@@ -255,40 +286,101 @@ class _Header extends StatelessWidget {
   }
 }
 
-class _DropHint extends StatelessWidget {
-  const _DropHint({required this.theme, required this.active});
-  final ThemeData theme;
-  final bool active;
+class _Card extends StatelessWidget {
+  const _Card({required this.child, this.onTap});
+  final Widget child;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
-    final fg = active
-        ? theme.colorScheme.onPrimaryContainer
-        : theme.colorScheme.onSurfaceVariant;
-    final bg = active
-        ? theme.colorScheme.primaryContainer
-        : theme.colorScheme.surfaceContainerLow;
-    return AnimatedContainer(
-      duration: const Duration(milliseconds: 150),
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      decoration: BoxDecoration(
-        color: bg,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: active
-              ? theme.colorScheme.primary
-              : theme.colorScheme.outlineVariant,
-          width: active ? 1.5 : 1,
+    final cs = Theme.of(context).colorScheme;
+    return Material(
+      color: cs.surfaceContainerLow,
+      borderRadius: BorderRadius.circular(14),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onTap,
+        child: Container(
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: cs.outlineVariant),
+          ),
+          child: child,
         ),
       ),
+    );
+  }
+}
+
+class _IconBadge extends StatelessWidget {
+  const _IconBadge({required this.icon, this.tint});
+  final IconData icon;
+  final Color? tint;
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final c = tint ?? cs.primary;
+    return Container(
+      height: 36,
+      width: 36,
+      decoration: BoxDecoration(
+        color: c.withValues(alpha: 0.15),
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Icon(icon, size: 18, color: c),
+    );
+  }
+}
+
+class _LastPlayed extends StatelessWidget {
+  const _LastPlayed({required this.record, required this.onPlay});
+  final LastPlayed record;
+  final VoidCallback onPlay;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = Theme.of(context);
+    final cs = t.colorScheme;
+    return _Card(
       child: Row(
         children: [
-          Icon(Icons.file_download_rounded, size: 18, color: fg),
-          const SizedBox(width: 10),
+          _IconBadge(
+            icon: Icons.history_rounded,
+            tint: cs.secondary,
+          ),
+          const SizedBox(width: 12),
           Expanded(
-            child: Text(
-              '…or drag & drop a media file anywhere on this window',
-              style: theme.textTheme.bodyMedium?.copyWith(color: fg),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  'LAST PLAYED',
+                  style: t.textTheme.labelSmall?.copyWith(
+                    color: cs.onSurfaceVariant,
+                    letterSpacing: 0.8,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  record.name,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: t.textTheme.titleSmall?.copyWith(
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          IconButton(
+            onPressed: onPlay,
+            icon: const Icon(Icons.play_arrow_rounded),
+            style: IconButton.styleFrom(
+              backgroundColor: cs.primary,
+              foregroundColor: cs.onPrimary,
             ),
           ),
         ],
@@ -298,249 +390,35 @@ class _DropHint extends StatelessWidget {
 }
 
 class _DropOverlay extends StatelessWidget {
-  const _DropOverlay({required this.theme});
-  final ThemeData theme;
+  const _DropOverlay();
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     return Positioned.fill(
       child: IgnorePointer(
         child: Container(
-          margin: const EdgeInsets.all(16),
+          margin: const EdgeInsets.all(20),
           decoration: BoxDecoration(
-            color: theme.colorScheme.primaryContainer.withValues(alpha: 0.85),
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: theme.colorScheme.primary, width: 2),
+            color: cs.primaryContainer.withValues(alpha: 0.9),
+            borderRadius: BorderRadius.circular(24),
+            border: Border.all(color: cs.primary, width: 2.5),
           ),
           alignment: Alignment.center,
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(
-                Icons.file_download_rounded,
-                size: 64,
-                color: theme.colorScheme.onPrimaryContainer,
-              ),
-              const SizedBox(height: 12),
+              Icon(Icons.file_download_rounded,
+                  size: 56, color: cs.onPrimaryContainer),
+              const SizedBox(height: 14),
               Text(
                 'Drop to play',
-                style: theme.textTheme.headlineSmall?.copyWith(
-                  color: theme.colorScheme.onPrimaryContainer,
-                  fontWeight: FontWeight.w600,
-                ),
+                style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                      color: cs.onPrimaryContainer,
+                      fontWeight: FontWeight.w700,
+                    ),
               ),
             ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _LastPlayedCard extends StatelessWidget {
-  const _LastPlayedCard({
-    required this.theme,
-    required this.record,
-    required this.onReplay,
-  });
-
-  final ThemeData theme;
-  final LastPlayed record;
-  final VoidCallback onReplay;
-
-  @override
-  Widget build(BuildContext context) {
-    return Card(
-      elevation: 0,
-      color: theme.colorScheme.secondaryContainer,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16),
-        side: BorderSide(color: theme.colorScheme.outlineVariant),
-      ),
-      child: InkWell(
-        onTap: onReplay,
-        borderRadius: BorderRadius.circular(16),
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Row(
-            children: [
-              CircleAvatar(
-                radius: 24,
-                backgroundColor: theme.colorScheme.primary,
-                child: Icon(
-                  Icons.replay_rounded,
-                  color: theme.colorScheme.onPrimary,
-                ),
-              ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Last played',
-                      style: theme.textTheme.labelMedium?.copyWith(
-                        color: theme.colorScheme.onSecondaryContainer,
-                        letterSpacing: 0.5,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      record.name,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: theme.textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.w600,
-                        color: theme.colorScheme.onSecondaryContainer,
-                      ),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      record.path,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        color: theme.colorScheme.onSecondaryContainer
-                            .withValues(alpha: 0.7),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(width: 12),
-              FilledButton.icon(
-                onPressed: onReplay,
-                icon: const Icon(Icons.play_arrow_rounded),
-                label: const Text('Replay'),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _TipBanner extends StatelessWidget {
-  const _TipBanner({required this.theme});
-  final ThemeData theme;
-
-  @override
-  Widget build(BuildContext context) {
-    return Card(
-      color: theme.colorScheme.surfaceContainerHighest,
-      elevation: 0,
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Icon(Icons.info_outline, color: theme.colorScheme.onSurfaceVariant),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Text(
-                'Tip: drag the window edges to resize, or press F11 in browser fullscreen for the best playback experience.',
-                style: theme.textTheme.bodySmall?.copyWith(
-                  color: theme.colorScheme.onSurfaceVariant,
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _PickerCard extends StatelessWidget {
-  const _PickerCard({
-    required this.title,
-    required this.subtitle,
-    required this.icon,
-    required this.actionLabel,
-    required this.onTap,
-  });
-
-  final String title;
-  final String subtitle;
-  final IconData icon;
-  final String actionLabel;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Align(
-      alignment: Alignment.center,
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 360),
-        child: Card(
-          elevation: 0,
-          color: theme.colorScheme.surfaceContainer,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
-            side: BorderSide(color: theme.colorScheme.outlineVariant),
-          ),
-          child: InkWell(
-            onTap: onTap,
-            borderRadius: BorderRadius.circular(12),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(
-                horizontal: 12,
-                vertical: 10,
-              ),
-              child: Row(
-                children: [
-                  CircleAvatar(
-                    radius: 14,
-                    backgroundColor: theme.colorScheme.primaryContainer,
-                    child: Icon(
-                      icon,
-                      size: 16,
-                      color: theme.colorScheme.onPrimaryContainer,
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(
-                          title,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: theme.textTheme.bodyMedium?.copyWith(
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                        const SizedBox(height: 2),
-                        Text(
-                          subtitle,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: theme.textTheme.bodySmall?.copyWith(
-                            color: theme.colorScheme.onSurfaceVariant,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  SizedBox(
-                    height: 32,
-                    child: OutlinedButton(
-                      onPressed: onTap,
-                      style: OutlinedButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(horizontal: 12),
-                        visualDensity: VisualDensity.compact,
-                      ),
-                      child: Text(actionLabel),
-                    ),
-                  ),
-                ],
-              ),
-            ),
           ),
         ),
       ),

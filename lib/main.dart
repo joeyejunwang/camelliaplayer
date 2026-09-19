@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:media_kit/media_kit.dart';
 import 'package:window_manager/window_manager.dart';
 
+import 'app_colors.dart';
 import 'home_screen.dart';
 import 'ios_home_screen.dart';
 
@@ -85,14 +86,31 @@ class CamelliaPlayerApp extends StatelessWidget {
       );
     }
 
-    // Windows and macOS use Material design.
-    final scheme = ColorScheme.fromSeed(
-      seedColor: const Color(0xFFE91E63),
-      brightness: Brightness.light,
-    );
+    // Windows and macOS use Material design. Seeded from the camellia
+    // pink so every accent (buttons, sliders, progress) automatically
+    // tracks the app icon's hue.
     final darkScheme = ColorScheme.fromSeed(
-      seedColor: const Color(0xFFE91E63),
+      seedColor: AppColors.camellia,
       brightness: Brightness.dark,
+    ).copyWith(
+      // Re-tint the few surface roles to match the deep, slightly purple
+      // panel tone behind the app icon, so the app does not look generic
+      // M3-dark. These also flow into CustomTitleBar and the player.
+      surface: AppColors.videoBackdrop,
+      surfaceContainerLowest: AppColors.videoBackdrop,
+      surfaceContainerLow: AppColors.panelDark,
+      surfaceContainer: AppColors.panelDark,
+      surfaceContainerHigh: const Color(0xFF22161D),
+      surfaceContainerHighest: const Color(0xFF2A1B23),
+      outlineVariant: const Color(0xFF3A2A33),
+      primary: AppColors.camellia,
+      secondary: const Color(0xFFF48FB1), // lighter camellia for the secondary slot
+      tertiary: const Color(0xFFFFB3C7),
+    );
+
+    final lightScheme = ColorScheme.fromSeed(
+      seedColor: AppColors.camellia,
+      brightness: Brightness.light,
     );
 
     return MaterialApp(
@@ -101,13 +119,21 @@ class CamelliaPlayerApp extends StatelessWidget {
       themeMode: ThemeMode.dark,
       theme: ThemeData(
         useMaterial3: true,
-        colorScheme: scheme,
-        scaffoldBackgroundColor: scheme.surface,
+        colorScheme: lightScheme,
+        scaffoldBackgroundColor: lightScheme.surface,
       ),
       darkTheme: ThemeData(
         useMaterial3: true,
         colorScheme: darkScheme,
         scaffoldBackgroundColor: darkScheme.surface,
+        sliderTheme: const SliderThemeData(
+          activeTrackColor: AppColors.camellia,
+          thumbColor: AppColors.camellia,
+        ),
+        progressIndicatorTheme: const ProgressIndicatorThemeData(
+          color: AppColors.camellia,
+        ),
+        iconTheme: const IconThemeData(color: Colors.white),
       ),
       home: const HomeScreen(),
     );

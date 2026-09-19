@@ -7,6 +7,7 @@ import 'package:media_kit/media_kit.dart';
 import 'package:media_kit_video/media_kit_video.dart';
 import 'package:path/path.dart' as p;
 
+import 'app_colors.dart';
 import 'custom_title_bar.dart';
 import 'mini_player.dart';
 import 'playback_manager.dart';
@@ -276,7 +277,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
       child: Focus(
         autofocus: true,
         child: Scaffold(
-          backgroundColor: const Color(0xFF0F0F12),
+          backgroundColor: AppColors.videoBackdrop,
           body: Column(
             children: [
               const CustomTitleBar(),
