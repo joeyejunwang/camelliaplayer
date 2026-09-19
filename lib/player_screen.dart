@@ -250,6 +250,11 @@ class _PlayerScreenState extends State<PlayerScreen> {
   void dispose() {
     _positionSub?.cancel();
     _lyricsScrollController.dispose();
+    // Flush the most recent lyric index synchronously enough that the
+    // next home-screen refresh reads the cue the user was actually on
+    // when they closed the player, not a stale value from before.
+    final idx = _currentIndex;
+    if (idx != null) _persistLyricIndex(idx);
     super.dispose();
   }
 
@@ -336,9 +341,12 @@ class _PlayerScreenState extends State<PlayerScreen> {
   }
 
   /// Writes the current lyric cue to [LastPlayedStore] so reopening the
-  /// file jumps straight to the same line. Calls are debounced through
-  /// [_persistQueue] so a flurry of position ticks coalesce into one
-  /// disk write instead of one write per frame.
+  /// file jumps straight to the same line. The short-circuit on
+  /// [_lastPersistedLyricIndex] debounces this to one disk write per
+  /// cue change, so a long stretch of playback never writes more than
+  /// once per lyric. Writes go through [_persistQueue] so consecutive
+  /// writes are serialized — this guarantees the most recent cue is
+  /// the one that ends up on disk.
   void _persistLyricIndex(int index) {
     if (index == _lastPersistedLyricIndex) return;
     _lastPersistedLyricIndex = index;
@@ -346,8 +354,15 @@ class _PlayerScreenState extends State<PlayerScreen> {
     final name = widget.videoName;
     if (path == null || path.isEmpty) return;
     final record = LastPlayed(path: path, name: name, lyricIndex: index);
-    _persistQueue = _persistQueue.then((_) => LastPlayedStore.write(record));
+    _persistQueue = _persistQueue
+        .then((_) => LastPlayedStore.write(record))
+        .catchError((_) {});
   }
+
+  /// Flushes any in-flight persist write so the caller can be sure the
+  /// latest lyric index is on disk before reading it back. Returns
+  /// when every queued write has either completed or failed.
+  Future<void> flushPersistQueue() => _persistQueue;
 
   void _seekToEntry(SubtitleEntry entry) {
     final pm = PlaybackManager.instance;

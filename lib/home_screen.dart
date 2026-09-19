@@ -64,9 +64,13 @@ class _HomeScreenState extends State<HomeScreen> {
     // "song.pt.srt"). Lets the player jump straight to the first lyric
     // even when the lyric file isn't named identically to the video.
     subtitle ??= _closestSubtitleIn(file.parent.path, base);
-    await LastPlayedStore.write(
-      LastPlayed(path: path, name: name),
-    );
+    // Only seed a fresh "last played" record on the first time this
+    // file is opened. When the caller is resuming an existing record
+    // (initialLyricIndex != null), the saved index must be preserved
+    // — overwriting it with a null lyricIndex would defeat the resume.
+    if (initialLyricIndex == null) {
+      await LastPlayedStore.write(LastPlayed(path: path, name: name));
+    }
     if (!mounted) return;
     setState(() => _videoPath = name);
     await Navigator.of(context).push(
@@ -81,7 +85,13 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
       ),
     );
-    if (mounted) await _refreshLast();
+    if (!mounted) return;
+    // The player's persist queue writes happen on microtasks scheduled
+    // from dispose(); the read in _refreshLast is enqueued after them,
+    // but yield once anyway so any chained write completes before we
+    // read the on-disk record back.
+    await Future<void>.delayed(Duration.zero);
+    await _refreshLast();
   }
 
   Future<void> _pick() async {
