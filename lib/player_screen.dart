@@ -43,6 +43,7 @@ class PlayerScreen extends StatefulWidget {
 class _PlayerScreenState extends State<PlayerScreen> {
   late final VideoController _videoController;
   List<SubtitleEntry> _subtitles = const [];
+  bool _subtitleFileFound = false;
   /// Throttle for the position-driven setState. The player emits
   /// position at the display refresh rate, but humans only need lyric
   /// highlights to update a handful of times per second. Choking the
@@ -129,30 +130,31 @@ class _PlayerScreenState extends State<PlayerScreen> {
   /// through the intro before we land on the first lyric — the user
   /// expects playback to start at the first line, not at 0.
   Future<void> _bootstrap() async {
-    await _openMedia();
-    await _loadSubtitles();
-    // No companion .srt was found — try to discover one in the same
-    // folder before falling back to play from 0. We do this after the
-    // media is open so the seek lands on a real playhead position.
-    if (_subtitles.isEmpty) {
-      await _discoverCompanionSubtitle();
-    }
-    // Pick the starting lyric: callers may pass [initialLyricIndex] to
-    // resume from where the user left off (e.g. the "last played"
-    // card). When null, fall back to the first lyric so the track
-    // never starts on the intro. Awaits the underlying seek so the
-    // playhead does not briefly flash past 0 before landing.
-    if (!mounted) return;
-    final pm = PlaybackManager.instance;
-    if (_subtitles.isNotEmpty && pm.hasMedia) {
-      final startIdx = _resolveInitialLyricIndex();
-      if (startIdx > 0) {
-        await pm.jumpToLyricIndex(startIdx);
-      } else {
-        await pm.jumpToFirstLyricAndPlay();
+    try {
+      await _openMedia();
+      if (!mounted) return;
+      await _loadSubtitles();
+      if (_subtitles.isEmpty) await _discoverCompanionSubtitle();
+      if (!mounted) return;
+
+      final pm = PlaybackManager.instance;
+      if (_subtitles.isNotEmpty && pm.hasMedia) {
+        await pm.jumpToLyricIndex(_resolveInitialLyricIndex());
+      } else if (pm.hasMedia) {
+        if (widget.initialLyricIndex != null || _subtitleFileFound) {
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+            content: Text('Could not load lyrics for this video.'),
+          ));
+          return;
+        }
+        pm.play();
       }
-    } else if (pm.hasMedia) {
-      pm.play();
+    } catch (error) {
+      debugPrint('Could not start playback at the lyric: $error');
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('Could not seek to the lyric. Playback is paused.'),
+      ));
     }
   }
 
@@ -199,6 +201,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
     //    name shares the longest prefix with the video.
     found ??= await _pickClosestSubtitleIn(dir, base, exts);
     if (found == null) return;
+    _subtitleFileFound = true;
 
     try {
       final loaded = await SubtitleLoader.loadFromFile(found);
@@ -220,6 +223,8 @@ class _PlayerScreenState extends State<PlayerScreen> {
     final directory = Directory(dir);
     if (!directory.existsSync()) return null;
     File? best;
+    File? onlySubtitle;
+    var subtitleCount = 0;
     int bestScore = -1;
     await for (final entity in directory.list(followLinks: false)) {
       if (entity is! File) continue;
@@ -231,6 +236,8 @@ class _PlayerScreenState extends State<PlayerScreen> {
       if (dot <= 0) continue;
       final ext = name.substring(dot + 1);
       if (!exts.contains(ext)) continue;
+      onlySubtitle = entity;
+      subtitleCount++;
       final stem = name.substring(0, dot);
       final baseStem = base
           .split(Platform.pathSeparator)
@@ -253,7 +260,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
         best = entity;
       }
     }
-    return best;
+    return best ?? (subtitleCount == 1 ? onlySubtitle : null);
   }
 
   Future<void> _openMedia() async {
@@ -275,6 +282,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
 
   Future<void> _loadSubtitles() async {
     if (widget.subtitleFile == null) return;
+    _subtitleFileFound = true;
     try {
       final dir = p.dirname(Platform.resolvedExecutable);
       final path = p.isAbsolute(widget.subtitleFile!.path)

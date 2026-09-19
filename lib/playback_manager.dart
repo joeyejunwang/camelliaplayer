@@ -78,7 +78,7 @@ class PlaybackManager extends ChangeNotifier {
   StreamSubscription<Duration>? _durationSub;
   StreamSubscription<bool>? _playingSub;
   StreamSubscription<double>? _volumeSub;
-  StreamSubscription<void>? _completedSub;
+  StreamSubscription<bool>? _completedSub;
 
   Duration _position = Duration.zero;
   Duration _duration = Duration.zero;
@@ -175,7 +175,8 @@ class PlaybackManager extends ChangeNotifier {
       if (vol > 0) _lastAudibleVolume = _volume;
       notifyListeners();
     });
-    _completedSub = p.stream.completed.listen((_) {
+    _completedSub = p.stream.completed.listen((completed) {
+      if (!completed) return;
       if (_repeatMode == LyricRepeatMode.repeatAll) {
         final target = _loopStart ?? Duration.zero;
         _seekAutomatically(target, resume: true);
@@ -284,24 +285,49 @@ class PlaybackManager extends ChangeNotifier {
     final subs = _subtitles;
     if (subs.isEmpty || !_hasMedia) return;
     final safe = index.clamp(0, subs.length - 1);
+    final p = player;
+    // open(play: false) queues the media load. A seek issued before mpv has
+    // read the file can be accepted but leave the position at zero.
+    final mediaDuration = p.state.duration > Duration.zero
+        ? p.state.duration
+        : await p.stream.duration
+          .firstWhere((duration) => duration > Duration.zero)
+          .timeout(const Duration(seconds: 10));
+    if (!_hasMedia) return;
+    final target = subs[safe].start;
+    if (target >= mediaDuration && target > Duration.zero) {
+      throw StateError('Lyric starts after the end of the media');
+    }
     _setLoopForIndex(safe);
-    try {
-      await _player?.seek(subs[safe].start);
-    } catch (_) {}
-    if (!_isPlaying) await _player?.play();
+    for (var attempt = 0; attempt < 2; attempt++) {
+      final arrived = Completer<void>();
+      bool atTarget(Duration position) =>
+          (position - target).abs() <= const Duration(milliseconds: 150);
+      final subscription = p.stream.position.listen((position) {
+        if (atTarget(position) && !arrived.isCompleted) arrived.complete();
+      });
+      try {
+        await p.seek(target);
+        if (!_hasMedia) return;
+        if (atTarget(p.state.position) && !arrived.isCompleted) {
+          arrived.complete();
+        }
+        await arrived.future.timeout(const Duration(seconds: 3));
+        await p.play();
+        return;
+      } on TimeoutException {
+        if (attempt == 1) rethrow;
+      } finally {
+        await subscription.cancel();
+      }
+    }
   }
 
   /// Same as [jumpToFirstLyricAndPlay] but only seeks + plays — used
   /// when the seek callback isn't bound yet. Awaits the underlying
   /// seek so playback begins at the lyric timestamp, not from 0.
   Future<void> seekFirstLyricAndPlay() async {
-    final subs = _subtitles;
-    if (subs.isEmpty || !_hasMedia) return;
-    _setLoopForIndex(0);
-    try {
-      await _player?.seek(subs.first.start);
-    } catch (_) {}
-    if (!_isPlaying) await _player?.play();
+    await jumpToLyricIndex(0);
   }
 
   /// Sets the lyric repeat mode directly (used by the dropdown).

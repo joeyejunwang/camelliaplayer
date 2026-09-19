@@ -126,6 +126,8 @@ class _HomeScreenState extends State<HomeScreen> {
     final directory = Directory(dir);
     if (!directory.existsSync()) return null;
     File? best;
+    File? onlySubtitle;
+    var subtitleCount = 0;
     int bestScore = -1;
     final baseStem = base
         .split(Platform.pathSeparator)
@@ -141,6 +143,8 @@ class _HomeScreenState extends State<HomeScreen> {
       if (dot <= 0) continue;
       final ext = name.substring(dot + 1);
       if (!_subtitleExts.contains(ext)) continue;
+      onlySubtitle = entity;
+      subtitleCount++;
       final stem = name.substring(0, dot);
       if (stem != baseStem &&
           !stem.startsWith('$baseStem.') &&
@@ -158,7 +162,7 @@ class _HomeScreenState extends State<HomeScreen> {
         best = entity;
       }
     }
-    return best;
+    return best ?? (subtitleCount == 1 ? onlySubtitle : null);
   }
 
   @override
