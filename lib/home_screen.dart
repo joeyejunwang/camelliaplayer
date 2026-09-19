@@ -43,7 +43,7 @@ class _HomeScreenState extends State<HomeScreen> {
     setState(() => _lastPlayed = lp);
   }
 
-  Future<void> _openMedia(String path) async {
+  Future<void> _openMedia(String path, {int? initialLyricIndex}) async {
     final file = File(path);
     if (!file.existsSync()) {
       _toast('File not found: $path');
@@ -59,8 +59,13 @@ class _HomeScreenState extends State<HomeScreen> {
         break;
       }
     }
+    // Fallback: look in the same folder for any subtitle file whose
+    // name shares a prefix with the video (e.g. "song.mp3" matches
+    // "song.pt.srt"). Lets the player jump straight to the first lyric
+    // even when the lyric file isn't named identically to the video.
+    subtitle ??= _closestSubtitleIn(file.parent.path, base);
     await LastPlayedStore.write(
-      LastPlayed(path: path, name: name, timestamp: DateTime.now()),
+      LastPlayed(path: path, name: name),
     );
     if (!mounted) return;
     setState(() => _videoPath = name);
@@ -72,6 +77,7 @@ class _HomeScreenState extends State<HomeScreen> {
           videoName: name,
           subtitleFile: subtitle,
           subtitlePath: subtitle?.path.split(Platform.pathSeparator).last,
+          initialLyricIndex: initialLyricIndex,
         ),
       ),
     );
@@ -106,6 +112,45 @@ class _HomeScreenState extends State<HomeScreen> {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text(msg)),
     );
+  }
+
+  /// Find the subtitle file in [dir] whose name shares the longest
+  /// prefix with [base]. Returns the best match or null if [dir] has no
+  /// subtitle files. Used to fall back when there is no `<video>.<ext>`
+  /// sibling, so the player can still jump to the first lyric on open.
+  File? _closestSubtitleIn(String dir, String base) {
+    final directory = Directory(dir);
+    if (!directory.existsSync()) return null;
+    File? best;
+    int bestScore = -1;
+    final baseStem = base
+        .split(Platform.pathSeparator)
+        .last
+        .replaceAll(RegExp(r'\.[^.]+$'), '')
+        .toLowerCase();
+    for (final entity in directory.listSync(followLinks: false)) {
+      if (entity is! File) continue;
+      final name = entity.path
+          .split(Platform.pathSeparator)
+          .last
+          .toLowerCase();
+      final dot = name.lastIndexOf('.');
+      if (dot <= 0) continue;
+      final ext = name.substring(dot + 1);
+      if (!_subtitleExts.contains(ext)) continue;
+      final stem = name.substring(0, dot);
+      var score = 0;
+      final max = stem.length < baseStem.length ? stem.length : baseStem.length;
+      for (var i = 0; i < max; i++) {
+        if (stem[i] != baseStem[i]) break;
+        score++;
+      }
+      if (score > bestScore) {
+        bestScore = score;
+        best = entity;
+      }
+    }
+    return best;
   }
 
   @override
@@ -202,7 +247,10 @@ class _HomeScreenState extends State<HomeScreen> {
                       if (_lastPlayed != null) ...[
                         _LastPlayed(
                           record: _lastPlayed!,
-                          onPlay: () => _openMedia(_lastPlayed!.path),
+                          onPlay: () => _openMedia(
+                            _lastPlayed!.path,
+                            initialLyricIndex: _lastPlayed!.lyricIndex,
+                          ),
                         ),
                         const SizedBox(height: 12),
                       ],

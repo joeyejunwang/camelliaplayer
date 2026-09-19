@@ -7,32 +7,30 @@ import 'package:path_provider/path_provider.dart';
 ///
 /// Stored as a small JSON file in the platform's application-support
 /// directory so it remains writable in installed Windows and iOS builds.
+///
+/// The optional [lyricIndex] remembers the cue that was on screen when
+/// the user closed the player so reopening the file resumes at the
+/// same lyric instead of jumping back to the very first one.
 class LastPlayed {
   LastPlayed({
     required this.path,
     required this.name,
-    required this.timestamp,
     this.lyricIndex,
   });
 
   final String path;
   final String name;
-  final DateTime timestamp;
   final int? lyricIndex;
 
   Map<String, dynamic> toJson() => {
     'path': path,
     'name': name,
-    'timestamp': timestamp.toIso8601String(),
     'lyricIndex': lyricIndex,
   };
 
   factory LastPlayed.fromJson(Map<String, dynamic> json) => LastPlayed(
     path: json['path'] as String,
     name: json['name'] as String,
-    timestamp:
-        DateTime.tryParse(json['timestamp'] as String? ?? '') ??
-        DateTime.fromMillisecondsSinceEpoch(0),
     lyricIndex: json['lyricIndex'] is int ? json['lyricIndex'] as int : null,
   );
 }

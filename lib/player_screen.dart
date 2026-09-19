@@ -9,6 +9,7 @@ import 'package:path/path.dart' as p;
 
 import 'app_colors.dart';
 import 'custom_title_bar.dart';
+import 'last_played.dart';
 import 'mini_player.dart';
 import 'playback_manager.dart';
 import 'subtitle_loader.dart';
@@ -21,6 +22,7 @@ class PlayerScreen extends StatefulWidget {
     required this.videoName,
     this.subtitleFile,
     this.subtitlePath,
+    this.initialLyricIndex,
   });
 
   final File? videoFile;
@@ -28,6 +30,11 @@ class PlayerScreen extends StatefulWidget {
   final String videoName;
   final File? subtitleFile;
   final String? subtitlePath;
+
+  /// Optional cue to jump to before starting playback. Used by callers
+  /// that resume the user's last position (e.g. the "last played" card
+  /// on the home screen). When null, playback starts at the first lyric.
+  final int? initialLyricIndex;
 
   @override
   State<PlayerScreen> createState() => _PlayerScreenState();
@@ -40,6 +47,8 @@ class _PlayerScreenState extends State<PlayerScreen> {
   StreamSubscription<Duration>? _positionSub;
   final ScrollController _lyricsScrollController = ScrollController();
   int? _lastScrolledIndex;
+  int? _lastPersistedLyricIndex;
+  Future<void> _persistQueue = Future.value();
 
   bool get _isMp3 =>
       p
@@ -89,11 +98,117 @@ class _PlayerScreenState extends State<PlayerScreen> {
   Future<void> _bootstrap() async {
     await _openMedia();
     await _loadSubtitles();
-    // No companion .srt was found — just start playback from the top
-    // so the user doesn't get a frozen black frame after picking a video.
-    if (widget.subtitleFile == null && mounted) {
-      PlaybackManager.instance.play();
+    // No companion .srt was found — try to discover one in the same
+    // folder before falling back to play from 0. We do this after the
+    // media is open so the seek lands on a real playhead position.
+    if (_subtitles.isEmpty) {
+      await _discoverCompanionSubtitle();
     }
+    // Pick the starting lyric: callers may pass [initialLyricIndex] to
+    // resume from where the user left off (e.g. the "last played"
+    // card). When null, fall back to the first lyric so the track
+    // never starts on the intro. Awaits the underlying seek so the
+    // playhead does not briefly flash past 0 before landing.
+    if (!mounted) return;
+    final pm = PlaybackManager.instance;
+    if (_subtitles.isNotEmpty && pm.hasMedia) {
+      final startIdx = _resolveInitialLyricIndex();
+      if (startIdx > 0) {
+        await pm.jumpToLyricIndex(startIdx);
+      } else {
+        await pm.jumpToFirstLyricAndPlay();
+      }
+    } else if (pm.hasMedia) {
+      pm.play();
+    }
+  }
+
+  /// Resolves [widget.initialLyricIndex] to a safe in-range cue index.
+  /// Returns 0 (the first lyric) when the caller didn't pass an index,
+  /// the recorded index is null, or the saved cue is out of bounds.
+  int _resolveInitialLyricIndex() {
+    final saved = widget.initialLyricIndex;
+    if (saved == null || _subtitles.isEmpty) return 0;
+    return saved.clamp(0, _subtitles.length - 1);
+  }
+
+  /// Best-effort search for a sibling subtitle file next to the opened
+  /// media. Used when the caller did not pass an explicit [subtitleFile].
+  /// Tries the exact same basename first, then any subtitle file in the
+  /// same directory. If a valid lyric file is found, it is loaded as if
+  /// the caller had passed it.
+  Future<void> _discoverCompanionSubtitle() async {
+    final videoPath =
+        widget.videoFile?.path ?? widget.videoPath ?? widget.videoName;
+    if (videoPath.isEmpty) return;
+    final dir = p.dirname(videoPath);
+    final base = videoPath.replaceAll(RegExp(r'\.[^.]+$'), '');
+    const exts = ['srt', 'vtt', 'ass', 'ssa'];
+
+    File? found;
+    // 1) Exact match: <video>.<ext>
+    for (final e in exts) {
+      final f = File('$base.$e');
+      if (f.existsSync()) {
+        found = f;
+        break;
+      }
+    }
+    // 2) Any subtitle file in the same folder, prefer the one whose
+    //    name shares the longest prefix with the video.
+    found ??= await _pickClosestSubtitleIn(dir, base, exts);
+    if (found == null) return;
+
+    try {
+      final loaded = await SubtitleLoader.loadFromFile(found);
+      if (!mounted || loaded.isEmpty) return;
+      setState(() => _subtitles = loaded);
+      PlaybackManager.instance.setSubtitles(loaded);
+    } catch (_) {}
+  }
+
+  /// Scan [dir] for any file with one of [exts]. Returns the file whose
+  /// name shares the longest common prefix with [base], so `song.mp3`
+  /// prefers `song.pt.srt` over `other.srt`. Returns null when [dir]
+  /// does not exist or has no subtitle files.
+  Future<File?> _pickClosestSubtitleIn(
+    String dir,
+    String base,
+    List<String> exts,
+  ) async {
+    final directory = Directory(dir);
+    if (!directory.existsSync()) return null;
+    File? best;
+    int bestScore = -1;
+    await for (final entity in directory.list(followLinks: false)) {
+      if (entity is! File) continue;
+      final name = entity.path
+          .split(Platform.pathSeparator)
+          .last
+          .toLowerCase();
+      final dot = name.lastIndexOf('.');
+      if (dot <= 0) continue;
+      final ext = name.substring(dot + 1);
+      if (!exts.contains(ext)) continue;
+      final stem = name.substring(0, dot);
+      final baseStem = base
+          .split(Platform.pathSeparator)
+          .last
+          .replaceAll(RegExp(r'\.[^.]+$'), '')
+          .toLowerCase();
+      // Score by shared prefix length so "song.pt" outranks "other".
+      var score = 0;
+      final max = stem.length < baseStem.length ? stem.length : baseStem.length;
+      for (var i = 0; i < max; i++) {
+        if (stem[i] != baseStem[i]) break;
+        score++;
+      }
+      if (score > bestScore) {
+        bestScore = score;
+        best = entity;
+      }
+    }
+    return best;
   }
 
   Future<void> _openMedia() async {
@@ -123,16 +238,11 @@ class _PlayerScreenState extends State<PlayerScreen> {
       final loaded = await SubtitleLoader.loadFromFile(File(path));
       if (!mounted) return;
       setState(() => _subtitles = loaded);
-      // Now that the full lyric list is here, hand it to the manager and
-      // jump to the first lyric before the player starts bleeding through
-      // its intro. This is the spot the user expects: pick the video,
-      // and the first lyric plays immediately.
-      final pm = PlaybackManager.instance;
-      pm.setSubtitles(loaded);
-      if (pm.hasMedia) {
-        pm.playFirstLyric();
-      }
-      pm.play();
+      // Hand the parsed list to the manager so its auto-advance logic
+      // sees it. The seek to the first lyric + play() is owned by
+      // _bootstrap so a sibling-discovery fallback runs in the same
+      // pass when the explicit subtitle file is missing or empty.
+      PlaybackManager.instance.setSubtitles(loaded);
     } catch (_) {}
   }
 
@@ -209,6 +319,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
     if (idx == null || !_lyricsScrollController.hasClients) return;
     if (idx == _lastScrolledIndex) return;
     _lastScrolledIndex = idx;
+    _persistLyricIndex(idx);
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted || !_lyricsScrollController.hasClients) return;
@@ -224,6 +335,20 @@ class _PlayerScreenState extends State<PlayerScreen> {
     });
   }
 
+  /// Writes the current lyric cue to [LastPlayedStore] so reopening the
+  /// file jumps straight to the same line. Calls are debounced through
+  /// [_persistQueue] so a flurry of position ticks coalesce into one
+  /// disk write instead of one write per frame.
+  void _persistLyricIndex(int index) {
+    if (index == _lastPersistedLyricIndex) return;
+    _lastPersistedLyricIndex = index;
+    final path = widget.videoFile?.path ?? widget.videoPath;
+    final name = widget.videoName;
+    if (path == null || path.isEmpty) return;
+    final record = LastPlayed(path: path, name: name, lyricIndex: index);
+    _persistQueue = _persistQueue.then((_) => LastPlayedStore.write(record));
+  }
+
   void _seekToEntry(SubtitleEntry entry) {
     final pm = PlaybackManager.instance;
     final idx = _subtitles.indexOf(entry);
@@ -232,6 +357,9 @@ class _PlayerScreenState extends State<PlayerScreen> {
         : null;
     pm.setLyricLoopSegment(start: entry.start, end: nextEntry?.start);
     pm.seek(entry.start);
+    // Manual jumps (Home / End / ← / → / tapping a lyric line) land
+    // outside the position-tick path, so persist the new index here.
+    if (idx >= 0) _persistLyricIndex(idx);
   }
 
   @override

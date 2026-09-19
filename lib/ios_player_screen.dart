@@ -223,7 +223,6 @@ class _IOSPlayerScreenState extends State<IOSPlayerScreen> {
     final record = LastPlayed(
       path: widget.videoPath,
       name: widget.videoName,
-      timestamp: DateTime.now(),
       lyricIndex: index,
     );
     _persistQueue = _persistQueue.then((_) => LastPlayedStore.write(record));

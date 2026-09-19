@@ -183,7 +183,6 @@ class _IOSHomeScreenState extends State<IOSHomeScreen> {
       LastPlayed(
         path: path,
         name: displayName,
-        timestamp: DateTime.now(),
         lyricIndex: initialLyricIndex,
       ),
     );

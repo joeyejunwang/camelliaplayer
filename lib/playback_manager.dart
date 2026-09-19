@@ -243,6 +243,41 @@ class PlaybackManager extends ChangeNotifier {
   void playFirstLyric() => onPlayFirstLyric?.call();
   void playLastLyric() => onPlayLastLyric?.call();
 
+  /// Seek to the start of the first lyric and start playing. Awaits the
+  /// underlying seek so a subsequent `play()` doesn't race ahead and
+  /// start playback from position 0. Used when a file is opened — the
+  /// user expects the first lyric, not the intro, to play immediately.
+  Future<void> jumpToFirstLyricAndPlay() async {
+    onPlayFirstLyric?.call();
+    await seekFirstLyricAndPlay();
+  }
+
+  /// Seek to the start of the lyric at [index] and start playing. Used
+  /// when resuming a file from a saved cue (e.g. the "last played"
+  /// card on the home screen). Awaits the underlying seek so playback
+  /// begins at the lyric timestamp, not from 0.
+  Future<void> jumpToLyricIndex(int index) async {
+    final subs = _subtitles;
+    if (subs.isEmpty || !_hasMedia) return;
+    final safe = index.clamp(0, subs.length - 1);
+    try {
+      await _player?.seek(subs[safe].start);
+    } catch (_) {}
+    if (!_isPlaying) await _player?.play();
+  }
+
+  /// Same as [jumpToFirstLyricAndPlay] but only seeks + plays — used
+  /// when the seek callback isn't bound yet. Awaits the underlying
+  /// seek so playback begins at the lyric timestamp, not from 0.
+  Future<void> seekFirstLyricAndPlay() async {
+    final subs = _subtitles;
+    if (subs.isEmpty || !_hasMedia) return;
+    try {
+      await _player?.seek(subs.first.start);
+    } catch (_) {}
+    if (!_isPlaying) await _player?.play();
+  }
+
   /// Sets the lyric repeat mode directly (used by the dropdown).
   void setRepeatMode(LyricRepeatMode mode) {
     if (_repeatMode == mode) return;
