@@ -157,6 +157,14 @@ class _PlayerScreenState extends State<PlayerScreen> {
     }
   }
 
+  /// Whether playback should start paused so we can seek to the first
+  /// lyric before any audio is heard. Returning true keeps the player
+  /// silent during [_bootstrap]; the seek to the first lyric + an
+  /// explicit play() then starts at the correct timestamp. Returning
+  /// false preserves the old behavior of opening and immediately
+  /// playing — used when there are no subtitles to anchor to.
+  bool get _openPaused => true;
+
   /// Resolves [widget.initialLyricIndex] to a safe in-range cue index.
   /// Returns 0 (the first lyric) when the caller didn't pass an index,
   /// the recorded index is null, or the saved cue is out of bounds.
