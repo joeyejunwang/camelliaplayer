@@ -1,8 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:window_manager/window_manager.dart';
 
-import 'app_colors.dart';
-
 /// Custom window title bar that replaces the native Windows chrome.
 class CustomTitleBar extends StatefulWidget {
   const CustomTitleBar({super.key, required this.onClose});
@@ -64,50 +62,50 @@ class _CustomTitleBarState extends State<CustomTitleBar> with WindowListener {
     final theme = Theme.of(context);
     final cs = theme.colorScheme;
 
-    // Pull all colors from the themed scheme so the title bar follows
-    // the camellia palette instead of being a hardcoded gray strip.
-    final bgColor = cs.surface;
     final textColor = cs.onSurface;
     final btnHover = cs.onSurface.withValues(alpha: 0.08);
-    final closeHover = AppColors.camelliaDeep;
+    final closeHover = cs.primary;
 
     return GestureDetector(
       onPanStart: (_) => _handleDrag(),
       onDoubleTap: _handleDoubleTap,
-      child: Container(
-        height: 40,
-        decoration: BoxDecoration(
-          color: bgColor,
-          border: Border(
-            bottom: BorderSide(color: cs.outlineVariant, width: 0.5),
-          ),
-        ),
+      child: SizedBox(
+        height: 58,
         child: Row(
           children: [
-            const SizedBox(width: 12),
-            // Real app icon — same image used on the home screen header.
-            ClipRRect(
-              borderRadius: BorderRadius.circular(6),
-              child: Image.asset(
-                'assets/branding/camellia_player_icon_1024.png',
-                width: 22,
-                height: 22,
-                fit: BoxFit.cover,
+            const SizedBox(width: 32),
+            Container(
+              width: 24,
+              height: 24,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [cs.primary.withValues(alpha: 0.6), cs.primary],
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: cs.primary.withValues(alpha: 0.23),
+                    blurRadius: 9,
+                    offset: const Offset(0, 3),
+                  ),
+                ],
               ),
+              child: const Icon(Icons.play_arrow_rounded, size: 17, color: Colors.white),
             ),
-            const SizedBox(width: 10),
+            const SizedBox(width: 14),
             // Title
             Text(
               'Camellia Player',
               style: TextStyle(
                 color: textColor,
-                fontSize: 13,
-                fontWeight: FontWeight.w600,
-                letterSpacing: 0.2,
+                fontSize: 22,
+                fontWeight: FontWeight.w500,
+                letterSpacing: -0.5,
               ),
             ),
             const Spacer(),
-            // ── Window control buttons ────────────────────────────────────
             _WindowButton(
               icon: Icons.remove,
               tooltip: 'Minimize',
@@ -115,6 +113,7 @@ class _CustomTitleBarState extends State<CustomTitleBar> with WindowListener {
               iconColor: textColor,
               onTap: () => windowManager.minimize(),
             ),
+            const SizedBox(width: 12),
             _WindowButton(
               icon: _isMaximized ? Icons.filter_none : Icons.crop_square,
               tooltip: _isMaximized ? 'Restore' : 'Maximize',
@@ -180,8 +179,8 @@ class _WindowButtonState extends State<_WindowButton> {
         child: GestureDetector(
           onTap: widget.onTap,
           child: Container(
-            width: 46,
-            height: 40,
+            width: 52,
+            height: 48,
             color: _isHovered ? widget.hoverColor : Colors.transparent,
             child: Icon(
               widget.icon,

@@ -7,7 +7,6 @@ import 'package:media_kit/media_kit.dart';
 import 'package:media_kit_video/media_kit_video.dart';
 import 'package:path/path.dart' as p;
 
-import 'app_colors.dart';
 import 'custom_title_bar.dart';
 import 'last_played.dart';
 import 'mini_player.dart';
@@ -472,6 +471,29 @@ class _PlayerScreenState extends State<PlayerScreen> {
     final bottomPadding = MediaQuery.of(context).padding.bottom;
     final pm = PlaybackManager.instance;
     final hasMedia = pm.hasMedia;
+    final playerScheme = ColorScheme.fromSeed(
+      seedColor: const Color(0xFFB86C73),
+      brightness: Brightness.light,
+    ).copyWith(
+      primary: const Color(0xFFB3636B),
+      onPrimary: Colors.white,
+      primaryContainer: const Color(0xFFF9E6E7),
+      onPrimaryContainer: const Color(0xFF974A54),
+      surface: const Color(0xFFFFFBF8),
+      surfaceContainerLow: const Color(0xFFFFF8F3),
+      surfaceContainerHigh: const Color(0xFFFFFAF6),
+      surfaceContainerHighest: const Color(0xFFF0E5DD),
+      onSurface: const Color(0xFF332A27),
+      onSurfaceVariant: const Color(0xFF756A65),
+      outlineVariant: const Color(0xFFEADDD5),
+    );
+    final playerTheme = ThemeData(
+      useMaterial3: true,
+      colorScheme: playerScheme,
+      fontFamily: 'Georgia',
+      iconTheme: const IconThemeData(color: Color(0xFF887A70)),
+      canvasColor: playerScheme.surface,
+    );
 
     void noop() {}
 
@@ -507,24 +529,116 @@ class _PlayerScreenState extends State<PlayerScreen> {
             ? () => pm.toggleShowSubtitleTrack()
             : noop,
       },
-      child: Focus(
+      child: Theme(
+        data: playerTheme,
+        child: Focus(
         autofocus: true,
         child: Scaffold(
-          backgroundColor: AppColors.videoBackdrop,
-          body: Column(
-            children: [
-              CustomTitleBar(onClose: persistAndFlushBeforeClose),
-              Expanded(
-                child: Row(
+          backgroundColor: const Color(0xFFF7EEE8),
+          body: Container(
+            decoration: const BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [Color(0xFFF7EEE8), Color(0xFFFFF8F1), Color(0xFFF5E8E0)],
+              ),
+            ),
+            child: Padding(
+              padding: EdgeInsets.fromLTRB(24, 28, 24, 18 + bottomPadding),
+              child: Column(
+                children: [
+                  Expanded(
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: const Color(0xBFFFFFFF),
+                        borderRadius: BorderRadius.circular(22),
+                        border: Border.all(color: Colors.white, width: 1.5),
+                        boxShadow: const [
+                          BoxShadow(
+                            color: Color(0x1F997A6B),
+                            blurRadius: 36,
+                            offset: Offset(0, 12),
+                          ),
+                        ],
+                      ),
+                      child: Column(
+                        children: [
+                          CustomTitleBar(onClose: persistAndFlushBeforeClose),
+                          Expanded(
+                            child: Padding(
+                              padding: const EdgeInsets.fromLTRB(18, 0, 16, 12),
+                              child: Row(
                   children: [
                     // ── Video area ──────────────────────────────────────────────
                     Expanded(
-                      flex: 65,
-                      child: Stack(
-                        children: [
+                      child: Container(
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFFFFBF8),
+                          borderRadius: BorderRadius.circular(18),
+                          border: Border.all(color: Colors.white, width: 1.5),
+                          boxShadow: const [
+                            BoxShadow(color: Color(0x109B766B), blurRadius: 15, offset: Offset(0, 5)),
+                          ],
+                        ),
+                        child: Column(
+                          children: [
+                            SizedBox(
+                              height: 64,
+                              child: Row(
+                                children: [
+                                  const SizedBox(width: 12),
+                                  Material(
+                                    color: const Color(0xFFFFFBF8),
+                                    borderRadius: BorderRadius.circular(12),
+                                    child: InkWell(
+                                      onTap: () async {
+                                        await persistAndFlushBeforeClose();
+                                        if (!context.mounted) return;
+                                        Navigator.of(context).pop();
+                                      },
+                                      borderRadius: BorderRadius.circular(12),
+                                      child: const SizedBox(
+                                        width: 48,
+                                        height: 48,
+                                        child: Icon(Icons.arrow_back_rounded, size: 28),
+                                      ),
+                                    ),
+                                  ),
+                                  const Spacer(),
+                                  Material(
+                                    color: Colors.transparent,
+                                    borderRadius: BorderRadius.circular(12),
+                                    child: InkWell(
+                                      onTap: () => PlaybackManager.instance.toggleShowLyric(),
+                                      borderRadius: BorderRadius.circular(12),
+                                      child: SizedBox(
+                                        width: 48,
+                                        height: 48,
+                                        child: Icon(
+                                          PlaybackManager.instance.showLyric
+                                              ? Icons.view_sidebar_rounded
+                                              : Icons.view_sidebar_outlined,
+                                          size: 27,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 12),
+                                ],
+                              ),
+                            ),
+                            Expanded(
+                              child: Padding(
+                                padding: const EdgeInsets.fromLTRB(0, 0, 12, 12),
+                                child: ClipRRect(
+                                  borderRadius: BorderRadius.circular(18),
+                                  child: Stack(
+                                    children: [
                           // Video or audio artwork
                           Positioned.fill(
-                            child: Center(
+                            child: ColoredBox(
+                              color: const Color(0xFF322B2B),
+                              child: Center(
                               child: _isMp3
                                   ? Padding(
                                       padding: const EdgeInsets.all(32),
@@ -554,6 +668,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
                                       controller: _videoController,
                                       controls: NoVideoControls,
                                     ),
+                              ),
                             ),
                           ),
 
@@ -598,68 +713,23 @@ class _PlayerScreenState extends State<PlayerScreen> {
                               ),
                             ),
 
-                          // Floating back button
-                          Positioned(
-                            top: 8,
-                            left: 8,
-                            child: Material(
-                              color: Colors.black.withValues(alpha: 0.5),
-                              borderRadius: BorderRadius.circular(20),
-                              child: InkWell(
-                                onTap: () async {
-                                  // Make sure the latest cue lands on
-                                  // disk before we close the route, so
-                                  // the home screen reads the right
-                                  // lyricIndex when it refreshes.
-                                  await persistAndFlushBeforeClose();
-                                  if (!context.mounted) return;
-                                  Navigator.of(context).pop();
-                                },
-                                borderRadius: BorderRadius.circular(20),
-                                child: const Padding(
-                                  padding: EdgeInsets.all(8),
-                                  child: Icon(
-                                    Icons.arrow_back,
-                                    color: Colors.white,
-                                    size: 22,
+                                    ],
                                   ),
                                 ),
                               ),
                             ),
-                          ),
-
-                          // Lyrics toggle button
-                          Positioned(
-                            top: 8,
-                            right: 8,
-                            child: Material(
-                              color: Colors.black.withValues(alpha: 0.5),
-                              borderRadius: BorderRadius.circular(20),
-                              child: InkWell(
-                                onTap: () =>
-                                    PlaybackManager.instance.toggleShowLyric(),
-                                borderRadius: BorderRadius.circular(20),
-                                child: Padding(
-                                  padding: const EdgeInsets.all(8),
-                                  child: Icon(
-                                    PlaybackManager.instance.showLyric
-                                        ? Icons.view_sidebar
-                                        : Icons.view_sidebar_outlined,
-                                    color: Colors.white,
-                                    size: 22,
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ),
-                        ],
+                          ],
+                        ),
                       ),
                     ),
 
                     // ── Lyrics panel ───────────────────────────────────────────
                     if (PlaybackManager.instance.showLyric)
+                      const SizedBox(width: 12),
+                    if (PlaybackManager.instance.showLyric)
                       SizedBox(
-                        width: 340,
+                        width: (MediaQuery.sizeOf(context).width * 0.26)
+                            .clamp(300.0, 420.0),
                         child: _LyricsPanel(
                           subtitles: _subtitles,
                           currentIndex: _stickyHighlightIndex ?? _currentIndex,
@@ -669,13 +739,19 @@ class _PlayerScreenState extends State<PlayerScreen> {
                       ),
                   ],
                 ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  const MiniPlayerBar(),
+                ],
               ),
-              Padding(
-                padding: EdgeInsets.only(bottom: bottomPadding),
-                child: const MiniPlayerBar(),
-              ),
-            ],
+            ),
           ),
+        ),
         ),
       ),
     );
@@ -704,36 +780,32 @@ class _LyricsPanel extends StatelessWidget {
     return Container(
       decoration: BoxDecoration(
         color: theme.colorScheme.surfaceContainerLow,
-        border: Border(
-          left: BorderSide(color: theme.colorScheme.outlineVariant, width: 0.5),
-        ),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: Colors.white, width: 1.5),
+        boxShadow: const [
+          BoxShadow(color: Color(0x109B766B), blurRadius: 15, offset: Offset(0, 5)),
+        ],
       ),
+      clipBehavior: Clip.antiAlias,
       child: Column(
         children: [
           // Panel header
           Container(
-            height: 44,
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            decoration: BoxDecoration(
-              border: Border(
-                bottom: BorderSide(
-                  color: theme.colorScheme.outlineVariant,
-                  width: 0.5,
-                ),
-              ),
-            ),
+            height: 62,
+            padding: const EdgeInsets.symmetric(horizontal: 24),
             child: Row(
               children: [
                 Icon(
                   Icons.lyrics_outlined,
-                  size: 18,
-                  color: theme.colorScheme.onSurfaceVariant,
+                  size: 25,
+                  color: const Color(0xFF9D8879),
                 ),
-                const SizedBox(width: 8),
+                const SizedBox(width: 12),
                 Text(
                   'Lyrics',
                   style: theme.textTheme.titleSmall?.copyWith(
-                    fontWeight: FontWeight.w600,
+                    fontSize: 20,
+                    fontWeight: FontWeight.w500,
                     color: theme.colorScheme.onSurface,
                   ),
                 ),
@@ -746,6 +818,7 @@ class _LyricsPanel extends StatelessWidget {
                       : '${currentIndex! + 1} / ${subtitles.length} lines',
                   style: theme.textTheme.bodySmall?.copyWith(
                     color: theme.colorScheme.onSurfaceVariant,
+                    fontSize: 15,
                   ),
                 ),
               ],
@@ -764,7 +837,7 @@ class _LyricsPanel extends StatelessWidget {
                   )
                 : ListView.builder(
                     controller: scrollController,
-                    padding: const EdgeInsets.symmetric(vertical: 8),
+                    padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 8),
                     itemCount: subtitles.length,
                     itemExtent: 56,
                     itemBuilder: (context, index) {
@@ -803,26 +876,44 @@ class _LyricLine extends StatelessWidget {
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 1),
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        margin: const EdgeInsets.symmetric(horizontal: 2, vertical: 1),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
         decoration: BoxDecoration(
           color: isActive
               ? theme.colorScheme.primaryContainer
               : Colors.transparent,
-          borderRadius: BorderRadius.circular(8),
+          borderRadius: BorderRadius.circular(12),
         ),
-        child: Text(
-          entry.text,
-          maxLines: 2,
-          overflow: TextOverflow.ellipsis,
-          style: theme.textTheme.bodyMedium?.copyWith(
-            color: isActive
-                ? theme.colorScheme.onPrimaryContainer
-                : theme.colorScheme.onSurfaceVariant,
-            fontWeight: isActive ? FontWeight.w600 : FontWeight.normal,
-            fontSize: isActive ? 14 : 13,
+        child: Row(
+          children: [
+            if (isActive) ...[
+              Container(
+                width: 3,
+                height: 30,
+                decoration: BoxDecoration(
+                  color: theme.colorScheme.primary,
+                  borderRadius: BorderRadius.circular(3),
+                ),
+              ),
+              const SizedBox(width: 14),
+            ],
+            Expanded(
+              child: Text(
+                entry.text,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  color: isActive
+                      ? theme.colorScheme.onPrimaryContainer
+                      : const Color(0xFF655F5B),
+                  fontWeight: isActive ? FontWeight.w600 : FontWeight.normal,
+                  fontSize: isActive ? 16 : 15,
+                  height: 1.25,
+                ),
+              ),
+            ),
+          ],
           ),
-        ),
       ),
     );
   }
