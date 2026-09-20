@@ -557,63 +557,13 @@ class _PlayerScreenState extends State<PlayerScreen> {
     try {
       final marked = await MarkedLyricsStore.read(mediaPath);
       if (!mounted || pm.playerMode == PlayerMode.listening) return;
-      final theme = Theme.of(context);
       await showDialog<void>(
         context: context,
-        builder: (dialogContext) => AlertDialog(
-          title: Text('Marked lyrics (${marked.length})'),
-          content: SizedBox(
-            width: (MediaQuery.sizeOf(context).width - 120)
-                .clamp(240.0, 520.0)
-                .toDouble(),
-            height: (MediaQuery.sizeOf(context).height - 220)
-                .clamp(160.0, 520.0)
-                .toDouble(),
-            child: marked.isEmpty
-                ? const Center(child: Text('No marked lyrics for this file.'))
-                : ListView.separated(
-                    itemCount: marked.length,
-                    separatorBuilder: (_, __) => const Divider(height: 1),
-                    itemBuilder: (context, position) {
-                      final index = marked[position];
-                      final entry = index >= 0 && index < _subtitles.length
-                          ? _subtitles[index]
-                          : null;
-                      return Padding(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 8,
-                          vertical: 12,
-                        ),
-                        child: Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            SizedBox(
-                              width: 48,
-                              child: Text(
-                                '${index + 1}.',
-                                style: theme.textTheme.bodyMedium?.copyWith(
-                                  color: theme.colorScheme.primary,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                            ),
-                            Expanded(
-                              child: Text(
-                                entry?.text ?? 'Lyric text unavailable',
-                              ),
-                            ),
-                          ],
-                        ),
-                      );
-                    },
-                  ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(dialogContext).pop(),
-              child: const Text('Close'),
-            ),
-          ],
+        builder: (_) => _MarkedLyricsDialog(
+          mediaPath: mediaPath,
+          initialMarks: marked,
+          subtitles: _subtitles,
+          onRemoved: _applyMarksAfterRemoval,
         ),
       );
     } catch (error) {
@@ -622,6 +572,27 @@ class _PlayerScreenState extends State<PlayerScreen> {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
         content: Text('Could not load marked lyrics for this file.'),
       ));
+    }
+  }
+
+  void _applyMarksAfterRemoval(int removedIndex, List<int> remaining) {
+    final pm = PlaybackManager.instance;
+    if (!mounted || pm.playerMode != PlayerMode.testing) return;
+    final valid = remaining
+        .where((index) => index >= 0 && index < _subtitles.length)
+        .toList();
+    final removedCurrent = pm.activeTestingLyricIndex == removedIndex;
+    if (valid.isEmpty) {
+      _selectPlayerMode(PlayerMode.marking);
+    } else {
+      pm.setTestingLyricIndices(valid, preserveCurrent: !removedCurrent);
+      if (removedCurrent) {
+        final next = valid.firstWhere(
+          (index) => index > removedIndex,
+          orElse: () => valid.first,
+        );
+        pm.seek(_subtitles[next].start);
+      }
     }
   }
 
@@ -659,20 +630,9 @@ class _PlayerScreenState extends State<PlayerScreen> {
       if (mode == PlayerMode.testing &&
           changed &&
           pm.playerMode == PlayerMode.testing) {
-        final remaining = (await MarkedLyricsStore.read(mediaPath))
-            .where((value) => value >= 0 && value < _subtitles.length)
-            .toList();
-        if (!mounted || pm.playerMode != PlayerMode.testing) return;
-        if (remaining.isEmpty) {
-          _selectPlayerMode(PlayerMode.marking);
-        } else {
-          pm.setTestingLyricIndices(remaining);
-          final next = remaining.firstWhere(
-            (value) => value > index,
-            orElse: () => remaining.first,
-          );
-          pm.seek(_subtitles[next].start);
-        }
+        final remaining = await MarkedLyricsStore.read(mediaPath);
+        if (!mounted) return;
+        _applyMarksAfterRemoval(index, remaining);
       }
       _showTopMarkNotice(
         mode == PlayerMode.marking
@@ -983,6 +943,139 @@ class _PlayerScreenState extends State<PlayerScreen> {
           ),
         ),
       ),
+    );
+  }
+}
+
+class _MarkedLyricsDialog extends StatefulWidget {
+  const _MarkedLyricsDialog({
+    required this.mediaPath,
+    required this.initialMarks,
+    required this.subtitles,
+    required this.onRemoved,
+  });
+
+  final String mediaPath;
+  final List<int> initialMarks;
+  final List<SubtitleEntry> subtitles;
+  final void Function(int removedIndex, List<int> remaining) onRemoved;
+
+  @override
+  State<_MarkedLyricsDialog> createState() => _MarkedLyricsDialogState();
+}
+
+class _MarkedLyricsDialogState extends State<_MarkedLyricsDialog> {
+  late List<int> _marked;
+  int? _removingIndex;
+
+  @override
+  void initState() {
+    super.initState();
+    _marked = widget.initialMarks;
+  }
+
+  Future<void> _remove(int index) async {
+    setState(() => _removingIndex = index);
+    final mediaPath = widget.mediaPath;
+    final onRemoved = widget.onRemoved;
+    try {
+      final changed = await MarkedLyricsStore.remove(mediaPath, index);
+      final remaining = await MarkedLyricsStore.read(mediaPath);
+      if (changed) onRemoved(index, remaining);
+      if (!mounted) return;
+      setState(() {
+        _marked = remaining;
+        _removingIndex = null;
+      });
+    } catch (error) {
+      debugPrint('Could not remove marked lyric: $error');
+      if (!mounted) return;
+      setState(() => _removingIndex = null);
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('Could not remove marked lyric.'),
+      ));
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return AlertDialog(
+      title: Text('Marked lyrics (${_marked.length})'),
+      content: SizedBox(
+        width: (MediaQuery.sizeOf(context).width - 120)
+            .clamp(240.0, 520.0)
+            .toDouble(),
+        height: (MediaQuery.sizeOf(context).height - 220)
+            .clamp(160.0, 520.0)
+            .toDouble(),
+        child: _marked.isEmpty
+            ? const Center(child: Text('No marked lyrics for this file.'))
+            : ListView.separated(
+                itemCount: _marked.length,
+                separatorBuilder: (_, _) => const Divider(height: 1),
+                itemBuilder: (context, position) {
+                  final index = _marked[position];
+                  final entry = index >= 0 && index < widget.subtitles.length
+                      ? widget.subtitles[index]
+                      : null;
+                  return Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 12,
+                    ),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        SizedBox(
+                          width: 48,
+                          child: Text(
+                            '${index + 1}.',
+                            style: theme.textTheme.bodyMedium?.copyWith(
+                              color: theme.colorScheme.primary,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                        Expanded(
+                          child: Text(
+                            entry?.text ?? 'Lyric text unavailable',
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        IconButton(
+                          icon: _removingIndex == index
+                              ? const SizedBox.square(
+                                  dimension: 18,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                  ),
+                                )
+                              : const Icon(Icons.delete_outline_rounded,
+                                  size: 18),
+                          color: theme.colorScheme.primary,
+                          tooltip: 'Remove lyric ${index + 1}',
+                          padding: EdgeInsets.zero,
+                          constraints: const BoxConstraints(
+                            minWidth: 32,
+                            minHeight: 32,
+                          ),
+                          onPressed: _removingIndex == null
+                              ? () => unawaited(_remove(index))
+                              : null,
+                        ),
+                      ],
+                    ),
+                  );
+                },
+              ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('Close'),
+        ),
+      ],
     );
   }
 }

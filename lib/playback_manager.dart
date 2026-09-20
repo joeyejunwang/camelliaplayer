@@ -436,15 +436,21 @@ class PlaybackManager extends ChangeNotifier {
     notifyListeners();
   }
 
-  void setTestingLyricIndices(List<int> indices) {
+  void setTestingLyricIndices(List<int> indices, {bool preserveCurrent = false}) {
     final valid = indices
         .where((index) => index >= 0 && index < _subtitles.length)
         .toSet()
         .toList()
       ..sort();
+    final keepCurrent = preserveCurrent &&
+        _playerMode == PlayerMode.testing &&
+        _repeatLyricIndex != null &&
+        valid.contains(_repeatLyricIndex);
     _testingLyricIndices = List<int>.unmodifiable(valid);
-    _repeatLyricIndex = null;
-    _currentLyricRepeatCount = 0;
+    if (!keepCurrent) {
+      _repeatLyricIndex = null;
+      _currentLyricRepeatCount = 0;
+    }
     notifyListeners();
   }
 
