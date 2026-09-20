@@ -57,6 +57,18 @@ enum LyricRepeatMode {
   }
 }
 
+/// The selected player mode. Mode-specific playback behavior can be added
+/// without changing how the transport controls are wired.
+enum PlayerMode {
+  listening('Listening'),
+  marking('Marking'),
+  testing('Testing');
+
+  const PlayerMode(this.label);
+
+  final String label;
+}
+
 /// Singleton that owns the shared [Player] instance and exposes its
 /// streams as ChangeNotifier state so any widget can react to playback.
 class PlaybackManager extends ChangeNotifier {
@@ -80,6 +92,7 @@ class PlaybackManager extends ChangeNotifier {
   bool _hasMedia = false;
   String _mediaTitle = 'No media playing';
   LyricRepeatMode _repeatMode = LyricRepeatMode.repeatTwo;
+  PlayerMode _playerMode = PlayerMode.listening;
   bool _showSubtitleTrack = true;
   bool _showLyric = true;
   int _currentLyricRepeatCount = 0;
@@ -112,6 +125,7 @@ class PlaybackManager extends ChangeNotifier {
   bool get hasMedia => _hasMedia;
   String get mediaTitle => _mediaTitle;
   LyricRepeatMode get repeatMode => _repeatMode;
+  PlayerMode get playerMode => _playerMode;
   bool get showSubtitleTrack => _showSubtitleTrack;
   bool get showLyric => _showLyric;
   List<SubtitleEntry> get subtitles => _subtitles;
@@ -187,6 +201,7 @@ class PlaybackManager extends ChangeNotifier {
     _position = Duration.zero;
     _duration = Duration.zero;
     _repeatMode = LyricRepeatMode.repeatTwo;
+    _playerMode = PlayerMode.listening;
     _showSubtitleTrack = true;
     _showLyric = true;
     _loopStart = null;
@@ -326,6 +341,13 @@ class PlaybackManager extends ChangeNotifier {
   /// seek so playback begins at the lyric timestamp, not from 0.
   Future<void> seekFirstLyricAndPlay() async {
     await jumpToLyricIndex(0);
+  }
+
+  /// Updates the selected player mode without changing playback behavior.
+  void setPlayerMode(PlayerMode mode) {
+    if (_playerMode == mode) return;
+    _playerMode = mode;
+    notifyListeners();
   }
 
   /// Sets the lyric repeat mode directly (used by the dropdown).
@@ -511,6 +533,7 @@ class PlaybackManager extends ChangeNotifier {
     _duration = Duration.zero;
     _isPlaying = false;
     _repeatMode = LyricRepeatMode.repeatTwo;
+    _playerMode = PlayerMode.listening;
     _showSubtitleTrack = true;
     _showLyric = true;
     _loopStart = null;

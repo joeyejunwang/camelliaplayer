@@ -102,6 +102,67 @@ class _RepeatModeDropdown extends StatelessWidget {
   }
 }
 
+class _PlayerModeDropdown extends StatelessWidget {
+  const _PlayerModeDropdown({required this.mode, required this.onChanged});
+
+  final PlayerMode mode;
+  final ValueChanged<PlayerMode> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return PopupMenuButton<PlayerMode>(
+      tooltip: 'Player mode',
+      initialValue: mode,
+      onSelected: onChanged,
+      itemBuilder: (context) => [
+        for (final choice in PlayerMode.values)
+          PopupMenuItem<PlayerMode>(
+            value: choice,
+            child: Row(
+              children: [
+                Icon(
+                  choice == mode ? Icons.check_rounded : Icons.circle_outlined,
+                  size: 18,
+                  color: choice == mode
+                      ? theme.colorScheme.primary
+                      : theme.colorScheme.onSurfaceVariant,
+                ),
+                const SizedBox(width: 10),
+                Text(choice.label),
+              ],
+            ),
+          ),
+      ],
+      child: Container(
+        height: 36,
+        padding: const EdgeInsets.symmetric(horizontal: 10),
+        decoration: BoxDecoration(
+          color: theme.colorScheme.primaryContainer,
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: theme.colorScheme.primary.withValues(alpha: 0.35)),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.headphones_rounded, size: 17, color: theme.colorScheme.primary),
+            const SizedBox(width: 7),
+            Text(
+              mode.label,
+              style: theme.textTheme.bodySmall?.copyWith(
+                fontWeight: FontWeight.w600,
+                color: theme.colorScheme.onPrimaryContainer,
+              ),
+            ),
+            const SizedBox(width: 4),
+            Icon(Icons.arrow_drop_down_rounded, size: 18, color: theme.colorScheme.primary),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class _CircleProgress extends StatelessWidget {
   const _CircleProgress({
     required this.progress,
@@ -584,13 +645,9 @@ class MiniPlayerBar extends StatelessWidget {
               ),
               child: LayoutBuilder(
                 builder: (context, constraints) {
-                  // The lyric ruler scales with the overall app width so it
-                  // grows on full-screen windows without becoming a tiny
-                  // strip on smaller ones. 50% of the row reads well across
-                  // window sizes; clamped between a sensible minimum and
-                  // the leftover space after the fixed-width controls.
+                  // Leave room for the transport buttons and mode selector.
                   final rulerWidth =
-                      (constraints.maxWidth * 0.5).clamp(400.0, 1400.0);
+                      (constraints.maxWidth - 700).clamp(80.0, 1400.0);
                   return Row(
                 children: [
                   // ── Progress ring ───────────────────────────────────────────
@@ -638,6 +695,15 @@ class MiniPlayerBar extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(width: 16),
+
+                  if (hasMedia)
+                    _PlayerModeDropdown(
+                      mode: pm.playerMode,
+                      onChanged: pm.setPlayerMode,
+                    )
+                  else
+                    const SizedBox(width: 160, height: 36),
+                  const SizedBox(width: 8),
 
                   // ── Transport controls: skip-back / rewind / fast-forward / skip-next ──
                   if (hasMedia)
