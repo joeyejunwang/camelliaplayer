@@ -795,7 +795,7 @@ class MiniPlayerBar extends StatelessWidget {
                         : pm.playerMode != PlayerMode.listening
                             ? 'Desktop lyrics unavailable in this model'
                             : pm.showDesktopLyric
-                                ? 'Desktop lyrics on — click to turn off'
+                                ? 'Desktop lyrics on — drag to move; drag an edge to resize'
                                 : 'Desktop lyrics off — click to turn on',
                     isActive: pm.showDesktopLyric,
                   ),

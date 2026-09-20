@@ -5,7 +5,7 @@
 
 #include <string>
 
-// A non-activating, click-through caption above other desktop windows.
+// A non-activating caption that can be dragged and resized above other windows.
 class DesktopLyricWindow {
  public:
   explicit DesktopLyricWindow(HWND player_window);

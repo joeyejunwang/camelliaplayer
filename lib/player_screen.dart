@@ -677,11 +677,11 @@ class _PlayerScreenState extends State<PlayerScreen> {
       _showTopMarkNotice(
         mode == PlayerMode.marking
             ? (changed
-                  ? 'Marked lyric ${index}.'
-                  : 'Lyric ${index} is already marked.')
+                  ? 'Marked lyric ${index+1}.'
+                  : 'Lyric ${index+1} is already marked.')
             : (changed
-                  ? 'Unmarked lyric ${index}.'
-                  : 'Lyric ${index} is not marked.'),
+                  ? 'Unmarked lyric ${index+1}.'
+                  : 'Lyric ${index+1} is not marked.'),
         const Duration(milliseconds: 3000),
       );
     } catch (error) {
