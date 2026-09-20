@@ -7,13 +7,6 @@ import 'package:record/record.dart';
 
 import 'playback_manager.dart';
 
-String _formatClock(Duration duration) {
-  final hours = duration.inHours;
-  final minutes = duration.inMinutes.remainder(60).toString().padLeft(2, '0');
-  final seconds = duration.inSeconds.remainder(60).toString().padLeft(2, '0');
-  return hours > 0 ? '$hours:$minutes:$seconds' : '${duration.inMinutes}:$seconds';
-}
-
 /// Returns the appropriate icon for a given repeat mode.
 IconData _getRepeatModeIcon(LyricRepeatMode mode) {
   switch (mode) {
@@ -73,29 +66,34 @@ class _RepeatModeDropdown extends StatelessWidget {
           ),
       ],
       child: Container(
-        height: 48,
-        padding: const EdgeInsets.symmetric(horizontal: 11),
+        height: 36,
+        padding: const EdgeInsets.symmetric(horizontal: 10),
         decoration: BoxDecoration(
-          color: theme.colorScheme.primaryContainer,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: Colors.white, width: 1.5),
-          boxShadow: const [BoxShadow(color: Color(0x128A635C), blurRadius: 8, offset: Offset(0, 3))],
+          color: theme.colorScheme.primaryContainer.withValues(alpha: 0.4),
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: theme.colorScheme.outlineVariant),
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
             Icon(
               _getRepeatModeIcon(repeatMode),
-              size: 20,
+              size: 16,
               color: theme.colorScheme.primary,
             ),
-            const SizedBox(width: 4),
+            const SizedBox(width: 6),
             Text(
               repeatMode.shortLabel,
               style: theme.textTheme.bodySmall?.copyWith(
                 fontWeight: FontWeight.w600,
                 color: theme.colorScheme.primary,
               ),
+            ),
+            const SizedBox(width: 4),
+            Icon(
+              Icons.arrow_drop_down_rounded,
+              size: 18,
+              color: theme.colorScheme.primary,
             ),
           ],
         ),
@@ -198,7 +196,7 @@ class _VolumeSlider extends StatelessWidget {
     final theme = Theme.of(context);
 
     return SizedBox(
-      height: 48,
+      height: 36,
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -213,12 +211,12 @@ class _VolumeSlider extends StatelessWidget {
             color: theme.colorScheme.onSurfaceVariant,
             size: 20,
           ),
-          const SizedBox(width: 10),
+          const SizedBox(width: 6),
           SizedBox(
-            width: 100,
+            width: 54,
             child: SliderTheme(
               data: SliderThemeData(
-                trackHeight: 5,
+                trackHeight: 3,
                 thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 6),
                 overlayShape: const RoundSliderOverlayShape(overlayRadius: 12),
                 activeTrackColor: theme.colorScheme.primary,
@@ -440,25 +438,20 @@ class _MiniBtn extends StatelessWidget {
     final theme = Theme.of(context);
 
     Widget btn = Material(
-      color: isActive ? theme.colorScheme.primaryContainer : theme.colorScheme.surface,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
-        side: const BorderSide(color: Colors.white, width: 1.5),
-      ),
-      elevation: 2,
-      shadowColor: const Color(0x228A635C),
+      color: isActive
+          ? theme.colorScheme.primaryContainer
+          : theme.colorScheme.surfaceContainerHighest,
+      borderRadius: BorderRadius.circular(8),
       child: InkWell(
         onTap: onPressed,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(8),
         child: SizedBox(
-          width: 46,
-          height: 48,
+          width: 36,
+          height: 36,
           child: Icon(
             icon,
-            size: 23,
-            color: isActive
-                ? theme.colorScheme.primary
-                : theme.colorScheme.onSurfaceVariant,
+            size: 20,
+            color: isActive ? theme.colorScheme.onPrimaryContainer : null,
           ),
         ),
       ),
@@ -485,23 +478,68 @@ class _LyricRulerPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     if (totalCount == 0) return;
-    final left = 12.0;
-    final right = size.width - 12;
-    final y = size.height / 2;
-    final ratio = currentIndex < 0
-        ? 0.0
-        : (currentIndex / (totalCount - 1).clamp(1, totalCount)).clamp(0.0, 1.0);
-    final thumbX = left + ratio * (right - left);
-    canvas.drawLine(Offset(left, y), Offset(right, y), Paint()
-      ..color = theme.colorScheme.surfaceContainerHighest
-      ..strokeWidth = 6
-      ..strokeCap = StrokeCap.round);
-    canvas.drawLine(Offset(left, y), Offset(thumbX, y), Paint()
+
+    final paint = Paint()
+      ..strokeWidth = 1.5
+      ..strokeCap = StrokeCap.round;
+
+    final activePaint = Paint()
       ..color = theme.colorScheme.primary
-      ..strokeWidth = 6
-      ..strokeCap = StrokeCap.round);
-    canvas.drawCircle(Offset(thumbX, y), 10, Paint()..color = Colors.white);
-    canvas.drawCircle(Offset(thumbX, y), 8, Paint()..color = theme.colorScheme.primary);
+      ..strokeWidth = 2;
+
+    final tickCount = totalCount > 50 ? 10 : (totalCount > 20 ? 5 : 1);
+    final step = totalCount > tickCount ? (totalCount / tickCount).floor() : 1;
+
+    // Draw one tick per lyric line (i = 0 .. totalCount-1), so label "500"
+    // sits exactly above subtitles[499].
+    for (int i = 0; i < totalCount; i++) {
+      final x =
+          12 + (i / (totalCount - 1).clamp(1, totalCount)) * (size.width - 24);
+      final isActive = i <= currentIndex;
+      final isMajor = (i % step == 0) || (i == totalCount - 1);
+
+      paint.color = isActive
+          ? theme.colorScheme.primary
+          : theme.colorScheme.outlineVariant;
+      paint.strokeWidth = isActive ? 2 : (isMajor ? 1.5 : 1);
+
+      final tickHeight = 8.0;
+      canvas.drawLine(
+        Offset(x, size.height - tickHeight),
+        Offset(x, size.height),
+        paint,
+      );
+
+      if (isMajor) {
+        final textPainter = TextPainter(
+          text: TextSpan(
+            text: '${i + 1}',
+            style: TextStyle(
+              fontSize: 8,
+              color: isActive
+                  ? theme.colorScheme.primary
+                  : theme.colorScheme.outline,
+            ),
+          ),
+          textDirection: TextDirection.ltr,
+        );
+        textPainter.layout();
+        textPainter.paint(canvas, Offset(x - textPainter.width / 2, 2));
+      }
+    }
+
+    if (currentIndex >= 0) {
+      final progressX =
+          12 +
+          (currentIndex / (totalCount - 1).clamp(1, totalCount)) *
+              (size.width - 24);
+      // Draw a thick progress line that fills the ticks up to the current lyric.
+      canvas.drawLine(
+        Offset(12, size.height - 4),
+        Offset(progressX, size.height - 4),
+        activePaint..strokeWidth = 6,
+      );
+    }
   }
 
   @override
@@ -513,7 +551,7 @@ class _LyricRulerPainter extends CustomPainter {
 class MiniPlayerBar extends StatelessWidget {
   const MiniPlayerBar({super.key});
 
-  static const double height = 96;
+  static const double height = 80;
 
   @override
   Widget build(BuildContext context) {
@@ -521,7 +559,10 @@ class MiniPlayerBar extends StatelessWidget {
     final pm = PlaybackManager.instance;
 
     return Material(
-      color: Colors.transparent,
+      color: theme.colorScheme.surfaceContainerHigh,
+      shape: const Border(
+        top: BorderSide(color: Colors.transparent, width: 0.5),
+      ),
       child: SizedBox(
         height: height,
         child: ListenableBuilder(
@@ -534,45 +575,50 @@ class MiniPlayerBar extends StatelessWidget {
             return Container(
               decoration: BoxDecoration(
                 color: theme.colorScheme.surfaceContainerHigh,
-                borderRadius: BorderRadius.circular(22),
-                border: Border.all(color: Colors.white, width: 1.5),
-                boxShadow: const [
-                  BoxShadow(color: Color(0x1F997A6B), blurRadius: 25, offset: Offset(0, 8)),
-                ],
+                border: Border(
+                  top: BorderSide(
+                    color: theme.colorScheme.outlineVariant,
+                    width: 0.5,
+                  ),
+                ),
               ),
               child: LayoutBuilder(
                 builder: (context, constraints) {
-                  return SingleChildScrollView(
-                    scrollDirection: Axis.horizontal,
-                    child: SizedBox(
-                      width: math.max(constraints.maxWidth, 960.0),
-                      child: Row(
+                  // The lyric ruler scales with the overall app width so it
+                  // grows on full-screen windows without becoming a tiny
+                  // strip on smaller ones. 50% of the row reads well across
+                  // window sizes; clamped between a sensible minimum and
+                  // the leftover space after the fixed-width controls.
+                  final rulerWidth =
+                      (constraints.maxWidth * 0.5).clamp(400.0, 1400.0);
+                  return Row(
                 children: [
                   // ── Progress ring ───────────────────────────────────────────
-                  const SizedBox(width: 32),
+                  const SizedBox(width: 20),
 
                   SizedBox(
-                    width: 58,
-                    height: 58,
+                    width: 44,
+                    height: 44,
                     child: Stack(
                       alignment: Alignment.center,
                       children: [
-                        Container(
-                          width: 58,
-                          height: 58,
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            color: theme.colorScheme.primaryContainer,
-                          ),
-                        ),
                         if (hasMedia)
                           _CircleProgress(
                             progress: progress,
                             color: theme.colorScheme.primary,
                             backgroundColor:
                                 theme.colorScheme.surfaceContainerHighest,
-                            strokeWidth: 2,
-                            size: 58,
+                            strokeWidth: 3,
+                            size: 44,
+                          )
+                        else
+                          Container(
+                            width: 44,
+                            height: 44,
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              color: theme.colorScheme.surfaceContainerHighest,
+                            ),
                           ),
                         GestureDetector(
                           onTap: hasMedia ? () => pm.togglePlay() : null,
@@ -585,13 +631,13 @@ class MiniPlayerBar extends StatelessWidget {
                             color: hasMedia
                                 ? theme.colorScheme.primary
                                 : theme.colorScheme.onSurfaceVariant,
-                            size: 33,
+                            size: 28,
                           ),
                         ),
                       ],
                     ),
                   ),
-                  const SizedBox(width: 18),
+                  const SizedBox(width: 16),
 
                   // ── Transport controls: skip-back / rewind / fast-forward / skip-next ──
                   if (hasMedia)
@@ -603,29 +649,29 @@ class MiniPlayerBar extends StatelessWidget {
                           onPressed: () => pm.playFirstLyric(),
                           tooltip: 'First lyric ←',
                         ),
-                        const SizedBox(width: 8),
+                        const SizedBox(width: 4),
                         _MiniBtn(
                           icon: Icons.fast_rewind_rounded,
                           onPressed: () => pm.playPreviousLyric(),
                           tooltip: 'Previous lyric ←',
                         ),
-                        const SizedBox(width: 8),
+                        const SizedBox(width: 4),
                         _MiniBtn(
                           icon: Icons.fast_forward_rounded,
                           onPressed: () => pm.playNextLyric(),
                           tooltip: 'Next lyric →',
                         ),
-                        const SizedBox(width: 8),
+                        const SizedBox(width: 4),
                         _MiniBtn(
                           icon: Icons.skip_next_rounded,
                           onPressed: () => pm.playLastLyric(),
                           tooltip: 'Last lyric End',
                         ),
-                        const SizedBox(width: 8),
+                        const SizedBox(width: 4),
                       ],
                     )
                   else
-                    const SizedBox(width: 200),
+                    const SizedBox(width: 152),
 
                   // ── Lyric repeat mode dropdown ──
                   if (hasMedia)
@@ -636,8 +682,8 @@ class MiniPlayerBar extends StatelessWidget {
                       },
                     )
                   else
-                    const SizedBox(width: 48, height: 48),
-                  const SizedBox(width: 8),
+                    const SizedBox(width: 36, height: 36),
+                  const SizedBox(width: 4),
 
                   // ── Subtitle track toggle ──
                   _MiniBtn(
@@ -652,7 +698,7 @@ class MiniPlayerBar extends StatelessWidget {
                         : 'Subtitles off (S) — click to enable',
                     isActive: pm.showSubtitleTrack,
                   ),
-                  const SizedBox(width: 8),
+                  const SizedBox(width: 4),
 
                   // ── Lyric visibility toggle ──
                   _MiniBtn(
@@ -666,12 +712,12 @@ class MiniPlayerBar extends StatelessWidget {
                     isActive: pm.showLyric,
                   ),
 
-                  const SizedBox(width: 24),
+                  const Spacer(),
 
                   // ── Lyric progress ruler ──────────────────────────────────────────
                   if (hasMedia && pm.hasSubtitles)
-                    Expanded(
-                      child: SizedBox(
+                    SizedBox(
+                      width: rulerWidth,
                       height: 24,
                       child: LayoutBuilder(
                         builder: (context, constraints) {
@@ -705,39 +751,22 @@ class MiniPlayerBar extends StatelessWidget {
                           );
                         },
                       ),
-                      ),
-                    )
-                  else
-                    const Spacer(),
-
-                  if (hasMedia) ...[
-                    const SizedBox(width: 18),
-                    Text(
-                      '${_formatClock(pm.position)} / ${_formatClock(pm.duration)}',
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        color: theme.colorScheme.onSurfaceVariant,
-                        fontSize: 14,
-                        fontFeatures: const [FontFeature.tabularFigures()],
-                      ),
                     ),
-                  ],
-                  const SizedBox(width: 32),
+
+                  const Spacer(),
 
                   // ── Volume slider ────────────────────────────────────────────
                   if (hasMedia)
                     SizedBox(
-                      width: 150,
+                      width: 100,
                       child: _VolumeSlider(
                         volume: vol,
                         onChanged: (v) => pm.setVolume(v),
                       ),
                     )
                   else
-                    const SizedBox(width: 150),
-                  const SizedBox(width: 20),
+                    const SizedBox(width: 100),
                 ],
-                      ),
-                    ),
                   );
                 },
               ),
