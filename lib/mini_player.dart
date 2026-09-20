@@ -512,7 +512,11 @@ class _MiniBtn extends StatelessWidget {
           child: Icon(
             icon,
             size: 20,
-            color: isActive ? theme.colorScheme.onPrimaryContainer : null,
+            color: onPressed == null
+                ? theme.disabledColor
+                : isActive
+                    ? theme.colorScheme.onPrimaryContainer
+                    : null,
           ),
         ),
       ),
@@ -610,7 +614,9 @@ class _LyricRulerPainter extends CustomPainter {
 
 /// Bottom mini-player bar replacing the NavigationBar.
 class MiniPlayerBar extends StatelessWidget {
-  const MiniPlayerBar({super.key});
+  const MiniPlayerBar({super.key, required this.onMarkLastLyric});
+
+  final VoidCallback onMarkLastLyric;
 
   static const double height = 80;
 
@@ -647,7 +653,7 @@ class MiniPlayerBar extends StatelessWidget {
                 builder: (context, constraints) {
                   // Leave room for the transport buttons and mode selector.
                   final rulerWidth =
-                      (constraints.maxWidth - 700).clamp(80.0, 1400.0);
+                      (constraints.maxWidth - 750).clamp(80.0, 1400.0);
                   return Row(
                 children: [
                   // ── Progress ring ───────────────────────────────────────────
@@ -776,6 +782,17 @@ class MiniPlayerBar extends StatelessWidget {
                         ? 'Show lyric on (L) — click to turn off'
                         : 'Show lyric off (L) — click to show current lyric',
                     isActive: pm.showLyric,
+                  ),
+
+                  const SizedBox(width: 4),
+                  _MiniBtn(
+                    icon: Icons.bookmark_add_rounded,
+                    onPressed: hasMedia &&
+                            pm.hasSubtitles &&
+                            pm.playerMode == PlayerMode.marking
+                        ? onMarkLastLyric
+                        : null,
+                    tooltip: 'Mark last lyric (M)',
                   ),
 
                   const Spacer(),

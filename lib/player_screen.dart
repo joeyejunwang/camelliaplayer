@@ -10,6 +10,7 @@ import 'package:path/path.dart' as p;
 import 'app_colors.dart';
 import 'custom_title_bar.dart';
 import 'last_played.dart';
+import 'marked_lyrics.dart';
 import 'mini_player.dart';
 import 'playback_manager.dart';
 import 'subtitle_loader.dart';
@@ -59,6 +60,8 @@ class _PlayerScreenState extends State<PlayerScreen> {
   int? _lastScrolledIndex;
   int? _lastPersistedLyricIndex;
   Future<void> _persistQueue = Future.value();
+  OverlayEntry? _markNoticeEntry;
+  Timer? _markNoticeTimer;
 
   bool get _isMp3 =>
       p
@@ -295,6 +298,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
 
   @override
   void dispose() {
+    _hideMarkNotice();
     _positionSub?.cancel();
     _lyricsScrollController.dispose();
     // Best-effort: queue a final write of the cue the playhead is on
@@ -446,6 +450,92 @@ class _PlayerScreenState extends State<PlayerScreen> {
       }
     }
     await _persistQueue;
+    await MarkedLyricsStore.flush();
+  }
+
+  Future<void> _markCurrentLyric() async {
+    final pm = PlaybackManager.instance;
+    if (!pm.hasMedia || pm.playerMode != PlayerMode.marking) return;
+
+    final index = _currentIndex ?? pm.currentLyricIndex;
+    if (index < 0 || index >= _subtitles.length) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('No lyric to mark at the current position.'),
+      ));
+      return;
+    }
+
+    final rawPath = widget.videoFile?.path ?? widget.videoPath;
+    if (rawPath == null || rawPath.isEmpty) return;
+    final mediaPath = p.normalize(p.isAbsolute(rawPath)
+        ? rawPath
+        : p.join(p.dirname(Platform.resolvedExecutable), rawPath));
+
+    try {
+      final added = await MarkedLyricsStore.add(mediaPath, index);
+      if (!mounted) return;
+      _showTopMarkNotice(
+        added
+            ? 'Marked lyric ${index}.'
+            : 'Lyric ${index} is already marked.',
+        added
+            ? const Duration(milliseconds: 3000)
+            : const Duration(milliseconds: 3000),
+      );
+    } catch (error) {
+      debugPrint('Could not save marked lyric: $error');
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('Could not save marked lyric.'),
+      ));
+    }
+  }
+
+  void _showTopMarkNotice(String message, Duration duration) {
+    _hideMarkNotice();
+    final entry = OverlayEntry(
+      builder: (overlayContext) {
+        final colors = Theme.of(overlayContext).colorScheme;
+        return Positioned(
+          top: MediaQuery.paddingOf(overlayContext).top + 52,
+          left: 16,
+          right: 16,
+          child: IgnorePointer(
+            child: Center(
+              child: Material(
+                color: colors.inverseSurface,
+                elevation: 8,
+                borderRadius: BorderRadius.circular(10),
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 420),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 18,
+                      vertical: 12,
+                    ),
+                    child: Text(
+                      message,
+                      style: TextStyle(color: colors.onInverseSurface),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        );
+      },
+    );
+    _markNoticeEntry = entry;
+    Overlay.of(context).insert(entry);
+    _markNoticeTimer = Timer(duration, _hideMarkNotice);
+  }
+
+  void _hideMarkNotice() {
+    _markNoticeTimer?.cancel();
+    _markNoticeTimer = null;
+    _markNoticeEntry?.remove();
+    _markNoticeEntry?.dispose();
+    _markNoticeEntry = null;
   }
 
   void _seekToEntry(SubtitleEntry entry) {
@@ -497,6 +587,11 @@ class _PlayerScreenState extends State<PlayerScreen> {
             : noop,
         const SingleActivator(LogicalKeyboardKey.keyL): () =>
             pm.toggleShowLyric(),
+        const SingleActivator(LogicalKeyboardKey.keyM): () {
+          if (pm.hasMedia && pm.playerMode == PlayerMode.marking) {
+            unawaited(_markCurrentLyric());
+          }
+        },
         const SingleActivator(LogicalKeyboardKey.arrowUp): hasMedia
             ? () => pm.setVolume((pm.volume + 0.1).clamp(0.0, 1.0))
             : noop,
@@ -672,7 +767,9 @@ class _PlayerScreenState extends State<PlayerScreen> {
               ),
               Padding(
                 padding: EdgeInsets.only(bottom: bottomPadding),
-                child: const MiniPlayerBar(),
+                child: MiniPlayerBar(
+                  onMarkLastLyric: () => unawaited(_markCurrentLyric()),
+                ),
               ),
             ],
           ),
