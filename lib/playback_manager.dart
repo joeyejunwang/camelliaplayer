@@ -19,7 +19,7 @@ enum LyricRepeatMode {
   /// Play the current lyric exactly three times, then advance to the next.
   repeatThree(times: 3),
 
-  /// Loop the current lyric indefinitely (default).
+  /// Loop the current lyric indefinitely.
   repeatAll(times: null);
 
   const LyricRepeatMode({required this.times});
@@ -79,7 +79,7 @@ class PlaybackManager extends ChangeNotifier {
   double _lastAudibleVolume = 1.0;
   bool _hasMedia = false;
   String _mediaTitle = 'No media playing';
-  LyricRepeatMode _repeatMode = LyricRepeatMode.repeatAll;
+  LyricRepeatMode _repeatMode = LyricRepeatMode.repeatTwo;
   bool _showSubtitleTrack = true;
   bool _showLyric = true;
   int _currentLyricRepeatCount = 0;
@@ -186,7 +186,7 @@ class PlaybackManager extends ChangeNotifier {
     _mediaTitle = title ?? media.uri.toString();
     _position = Duration.zero;
     _duration = Duration.zero;
-    _repeatMode = LyricRepeatMode.repeatAll;
+    _repeatMode = LyricRepeatMode.repeatTwo;
     _showSubtitleTrack = true;
     _showLyric = true;
     _loopStart = null;
@@ -510,7 +510,7 @@ class PlaybackManager extends ChangeNotifier {
     _position = Duration.zero;
     _duration = Duration.zero;
     _isPlaying = false;
-    _repeatMode = LyricRepeatMode.repeatAll;
+    _repeatMode = LyricRepeatMode.repeatTwo;
     _showSubtitleTrack = true;
     _showLyric = true;
     _loopStart = null;

@@ -37,7 +37,7 @@ class _IOSPlayerScreenState extends State<IOSPlayerScreen> {
   String? _errorMessage;
   bool _showLyrics = true;
   bool _showSubtitleOverlay = true;
-  LyricRepeatMode _repeatMode = LyricRepeatMode.repeatAll;
+  LyricRepeatMode _repeatMode = LyricRepeatMode.repeatTwo;
   bool _automaticSeekPending = false;
   int? _loopLyricIndex;
   int? _lastPersistedLyricIndex;
@@ -167,7 +167,7 @@ class _IOSPlayerScreenState extends State<IOSPlayerScreen> {
         _subtitles = loaded;
         _showLyrics = loaded.isNotEmpty;
         _showSubtitleOverlay = true;
-        _repeatMode = LyricRepeatMode.repeatAll;
+        _repeatMode = LyricRepeatMode.repeatTwo;
         _loopLyricIndex = _initialIndexFor(loaded);
       });
       final initialIndex = _loopLyricIndex!;
