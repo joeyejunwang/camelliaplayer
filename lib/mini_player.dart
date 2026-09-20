@@ -782,6 +782,23 @@ class MiniPlayerBar extends StatelessWidget {
                   ),
                   const SizedBox(width: 4),
 
+                  // ── Lyric visibility toggle ──
+                  _MiniBtn(
+                    icon: pm.showLyric
+                        ? Icons.visibility_rounded
+                        : Icons.visibility_off_rounded,
+                    onPressed: hasMedia && pm.playerMode == PlayerMode.listening
+                        ? () => pm.toggleShowLyric()
+                        : null,
+                    tooltip: pm.playerMode != PlayerMode.listening
+                        ? 'Lyrics unavailable in this model'
+                        : pm.showLyric
+                            ? 'Show lyric on (L) — click to turn off'
+                            : 'Show lyric off (L) — click to show current lyric',
+                    isActive: pm.showLyric,
+                  ),
+                  const SizedBox(width: 4),
+                  
                   // ── Desktop lyric overlay toggle ──
                   _MiniBtn(
                     icon: Icons.desktop_windows_rounded,
@@ -801,23 +818,6 @@ class MiniPlayerBar extends StatelessWidget {
                   ),
                   const SizedBox(width: 4),
 
-                  // ── Lyric visibility toggle ──
-                  _MiniBtn(
-                    icon: pm.showLyric
-                        ? Icons.visibility_rounded
-                        : Icons.visibility_off_rounded,
-                    onPressed: hasMedia && pm.playerMode == PlayerMode.listening
-                        ? () => pm.toggleShowLyric()
-                        : null,
-                    tooltip: pm.playerMode != PlayerMode.listening
-                        ? 'Lyrics unavailable in this model'
-                        : pm.showLyric
-                            ? 'Show lyric on (L) — click to turn off'
-                            : 'Show lyric off (L) — click to show current lyric',
-                    isActive: pm.showLyric,
-                  ),
-
-                  const SizedBox(width: 4),
                   _MiniBtn(
                     icon: pm.playerMode == PlayerMode.testing
                         ? Icons.bookmark_remove_rounded
