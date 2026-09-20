@@ -453,9 +453,21 @@ class _PlayerScreenState extends State<PlayerScreen> {
     await MarkedLyricsStore.flush();
   }
 
-  Future<void> _markCurrentLyric() async {
+  void _selectPlayerMode(PlayerMode mode) {
+    PlaybackManager.instance.setPlayerMode(mode);
+    setState(() {});
+    if (mode == PlayerMode.listening && PlaybackManager.instance.showLyric) {
+      _lastScrolledIndex = null;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _scrollToCurrent();
+      });
+    }
+  }
+
+  Future<void> _changeCurrentLyricMark() async {
     final pm = PlaybackManager.instance;
-    if (!pm.hasMedia || pm.playerMode != PlayerMode.marking) return;
+    final mode = pm.playerMode;
+    if (!pm.hasMedia || mode == PlayerMode.listening) return;
 
     final index = _currentIndex ?? pm.currentLyricIndex;
     if (index < 0 || index >= _subtitles.length) {
@@ -472,21 +484,25 @@ class _PlayerScreenState extends State<PlayerScreen> {
         : p.join(p.dirname(Platform.resolvedExecutable), rawPath));
 
     try {
-      final added = await MarkedLyricsStore.add(mediaPath, index);
+      final changed = mode == PlayerMode.marking
+          ? await MarkedLyricsStore.add(mediaPath, index)
+          : await MarkedLyricsStore.remove(mediaPath, index);
       if (!mounted) return;
       _showTopMarkNotice(
-        added
-            ? 'Marked lyric ${index}.'
-            : 'Lyric ${index} is already marked.',
-        added
-            ? const Duration(milliseconds: 3000)
-            : const Duration(milliseconds: 3000),
+        mode == PlayerMode.marking
+            ? (changed
+                  ? 'Marked lyric ${index}.'
+                  : 'Lyric ${index} is already marked.')
+            : (changed
+                  ? 'Unmarked lyric ${index}.'
+                  : 'Lyric ${index} is not marked.'),
+        const Duration(milliseconds: 3000),
       );
     } catch (error) {
-      debugPrint('Could not save marked lyric: $error');
+      debugPrint('Could not update marked lyric: $error');
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-        content: Text('Could not save marked lyric.'),
+        content: Text('Could not update marked lyric.'),
       ));
     }
   }
@@ -588,8 +604,8 @@ class _PlayerScreenState extends State<PlayerScreen> {
         const SingleActivator(LogicalKeyboardKey.keyL): () =>
             pm.toggleShowLyric(),
         const SingleActivator(LogicalKeyboardKey.keyM): () {
-          if (pm.hasMedia && pm.playerMode == PlayerMode.marking) {
-            unawaited(_markCurrentLyric());
+          if (pm.hasMedia && pm.playerMode != PlayerMode.listening) {
+            unawaited(_changeCurrentLyricMark());
           }
         },
         const SingleActivator(LogicalKeyboardKey.arrowUp): hasMedia
@@ -731,8 +747,9 @@ class _PlayerScreenState extends State<PlayerScreen> {
                               color: Colors.black.withValues(alpha: 0.5),
                               borderRadius: BorderRadius.circular(20),
                               child: InkWell(
-                                onTap: () =>
-                                    PlaybackManager.instance.toggleShowLyric(),
+                                onTap: pm.playerMode == PlayerMode.listening
+                                    ? () => pm.toggleShowLyric()
+                                    : null,
                                 borderRadius: BorderRadius.circular(20),
                                 child: Padding(
                                   padding: const EdgeInsets.all(8),
@@ -740,7 +757,9 @@ class _PlayerScreenState extends State<PlayerScreen> {
                                     PlaybackManager.instance.showLyric
                                         ? Icons.view_sidebar
                                         : Icons.view_sidebar_outlined,
-                                    color: Colors.white,
+                                    color: pm.playerMode == PlayerMode.listening
+                                        ? Colors.white
+                                        : Colors.white38,
                                     size: 22,
                                   ),
                                 ),
@@ -768,7 +787,9 @@ class _PlayerScreenState extends State<PlayerScreen> {
               Padding(
                 padding: EdgeInsets.only(bottom: bottomPadding),
                 child: MiniPlayerBar(
-                  onMarkLastLyric: () => unawaited(_markCurrentLyric()),
+                  onChangeLastLyricMark: () =>
+                      unawaited(_changeCurrentLyricMark()),
+                  onPlayerModeChanged: _selectPlayerMode,
                 ),
               ),
             ],

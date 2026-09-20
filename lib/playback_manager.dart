@@ -57,8 +57,7 @@ enum LyricRepeatMode {
   }
 }
 
-/// The selected player mode. Mode-specific playback behavior can be added
-/// without changing how the transport controls are wired.
+/// The selected player mode.
 enum PlayerMode {
   listening('Listening'),
   marking('Marking'),
@@ -95,6 +94,8 @@ class PlaybackManager extends ChangeNotifier {
   PlayerMode _playerMode = PlayerMode.listening;
   bool _showSubtitleTrack = true;
   bool _showLyric = true;
+  bool _listeningShowSubtitleTrack = true;
+  bool _listeningShowLyric = true;
   int _currentLyricRepeatCount = 0;
   int? _repeatLyricIndex;
   Duration? _automaticSeekTarget;
@@ -204,6 +205,8 @@ class PlaybackManager extends ChangeNotifier {
     _playerMode = PlayerMode.listening;
     _showSubtitleTrack = true;
     _showLyric = true;
+    _listeningShowSubtitleTrack = true;
+    _listeningShowLyric = true;
     _loopStart = null;
     _loopEnd = null;
     _currentLyricRepeatCount = 0;
@@ -343,10 +346,23 @@ class PlaybackManager extends ChangeNotifier {
     await jumpToLyricIndex(0);
   }
 
-  /// Updates the selected player mode without changing playback behavior.
+  /// Marking and Testing hide lyrics and subtitles while keeping the user's
+  /// Listening visibility choices for when that mode is selected again.
   void setPlayerMode(PlayerMode mode) {
     if (_playerMode == mode) return;
+    if (_playerMode == PlayerMode.listening) {
+      _listeningShowSubtitleTrack = _showSubtitleTrack;
+      _listeningShowLyric = _showLyric;
+    }
     _playerMode = mode;
+    if (mode == PlayerMode.listening) {
+      _showSubtitleTrack = _listeningShowSubtitleTrack;
+      _showLyric = _listeningShowLyric;
+    } else {
+      _showSubtitleTrack = false;
+      _showLyric = false;
+    }
+    _applySubtitleTrackVisibility();
     notifyListeners();
   }
 
@@ -385,17 +401,21 @@ class PlaybackManager extends ChangeNotifier {
   }
 
   void toggleShowLyric() {
+    if (_playerMode != PlayerMode.listening) return;
     _showLyric = !_showLyric;
     notifyListeners();
   }
 
   void toggleShowSubtitleTrack() {
+    if (_playerMode != PlayerMode.listening) return;
     _showSubtitleTrack = !_showSubtitleTrack;
+    _applySubtitleTrackVisibility();
+    notifyListeners();
+  }
+
+  void _applySubtitleTrackVisibility() {
     final player = _player;
-    if (player == null) {
-      notifyListeners();
-      return;
-    }
+    if (player == null) return;
     if (_showSubtitleTrack) {
       final tracks = player.state.tracks;
       final firstSub = tracks.subtitle.isNotEmpty
@@ -405,7 +425,6 @@ class PlaybackManager extends ChangeNotifier {
     } else {
       player.setSubtitleTrack(SubtitleTrack('no', null, null));
     }
-    notifyListeners();
   }
 
   /// Detail screen calls this as the active lyric changes. When
@@ -536,6 +555,8 @@ class PlaybackManager extends ChangeNotifier {
     _playerMode = PlayerMode.listening;
     _showSubtitleTrack = true;
     _showLyric = true;
+    _listeningShowSubtitleTrack = true;
+    _listeningShowLyric = true;
     _loopStart = null;
     _loopEnd = null;
     _currentLyricRepeatCount = 0;

@@ -614,9 +614,14 @@ class _LyricRulerPainter extends CustomPainter {
 
 /// Bottom mini-player bar replacing the NavigationBar.
 class MiniPlayerBar extends StatelessWidget {
-  const MiniPlayerBar({super.key, required this.onMarkLastLyric});
+  const MiniPlayerBar({
+    super.key,
+    required this.onChangeLastLyricMark,
+    required this.onPlayerModeChanged,
+  });
 
-  final VoidCallback onMarkLastLyric;
+  final VoidCallback onChangeLastLyricMark;
+  final ValueChanged<PlayerMode> onPlayerModeChanged;
 
   static const double height = 80;
 
@@ -705,7 +710,7 @@ class MiniPlayerBar extends StatelessWidget {
                   if (hasMedia)
                     _PlayerModeDropdown(
                       mode: pm.playerMode,
-                      onChanged: pm.setPlayerMode,
+                      onChanged: onPlayerModeChanged,
                     )
                   else
                     const SizedBox(width: 160, height: 36),
@@ -762,12 +767,14 @@ class MiniPlayerBar extends StatelessWidget {
                     icon: pm.showSubtitleTrack
                         ? Icons.closed_caption_rounded
                         : Icons.closed_caption_off_rounded,
-                    onPressed: hasMedia
+                    onPressed: hasMedia && pm.playerMode == PlayerMode.listening
                         ? () => pm.toggleShowSubtitleTrack()
                         : null,
-                    tooltip: pm.showSubtitleTrack
-                        ? 'Subtitles on (S) — click to turn off'
-                        : 'Subtitles off (S) — click to enable',
+                    tooltip: pm.playerMode != PlayerMode.listening
+                        ? 'Subtitles unavailable in this model'
+                        : pm.showSubtitleTrack
+                            ? 'Subtitles on (S) — click to turn off'
+                            : 'Subtitles off (S) — click to enable',
                     isActive: pm.showSubtitleTrack,
                   ),
                   const SizedBox(width: 4),
@@ -777,22 +784,30 @@ class MiniPlayerBar extends StatelessWidget {
                     icon: pm.showLyric
                         ? Icons.visibility_rounded
                         : Icons.visibility_off_rounded,
-                    onPressed: hasMedia ? () => pm.toggleShowLyric() : null,
-                    tooltip: pm.showLyric
-                        ? 'Show lyric on (L) — click to turn off'
-                        : 'Show lyric off (L) — click to show current lyric',
+                    onPressed: hasMedia && pm.playerMode == PlayerMode.listening
+                        ? () => pm.toggleShowLyric()
+                        : null,
+                    tooltip: pm.playerMode != PlayerMode.listening
+                        ? 'Lyrics unavailable in this model'
+                        : pm.showLyric
+                            ? 'Show lyric on (L) — click to turn off'
+                            : 'Show lyric off (L) — click to show current lyric',
                     isActive: pm.showLyric,
                   ),
 
                   const SizedBox(width: 4),
                   _MiniBtn(
-                    icon: Icons.bookmark_add_rounded,
+                    icon: pm.playerMode == PlayerMode.testing
+                        ? Icons.bookmark_remove_rounded
+                        : Icons.bookmark_add_rounded,
                     onPressed: hasMedia &&
                             pm.hasSubtitles &&
-                            pm.playerMode == PlayerMode.marking
-                        ? onMarkLastLyric
+                            pm.playerMode != PlayerMode.listening
+                        ? onChangeLastLyricMark
                         : null,
-                    tooltip: 'Mark last lyric (M)',
+                    tooltip: pm.playerMode == PlayerMode.testing
+                        ? 'Unmark last lyric (M)'
+                        : 'Mark last lyric (M)',
                   ),
 
                   const Spacer(),

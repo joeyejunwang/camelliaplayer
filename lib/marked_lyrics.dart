@@ -57,13 +57,30 @@ class MarkedLyricsStore {
 
   static Future<void> flush() => _writeQueue;
 
-  static Future<bool> _add(
+  /// Removes one index without changing marks for other media files.
+  /// Returns false when that index was not marked.
+  static Future<bool> remove(
     String mediaPath,
-    int lyricIndex,
+    int lyricIndex, {
     File? targetFile,
-  ) async {
-    final target = targetFile ?? await file;
-    final data = await _readData(target);
+  }) {
+    if (lyricIndex < 0) {
+      throw ArgumentError.value(lyricIndex, 'lyricIndex');
+    }
+    final operation = _writeQueue.then(
+      (_) => _remove(mediaPath, lyricIndex, targetFile),
+    );
+    _writeQueue = operation.then<void>(
+      (_) {},
+      onError: (Object _, StackTrace __) {},
+    );
+    return operation;
+  }
+
+  static Map<String, dynamic> _mediaFor(
+    Map<String, dynamic> data,
+    String mediaPath,
+  ) {
     final rawMedia = data['media'];
     if (rawMedia != null && rawMedia is! Map) {
       throw const FormatException('Invalid marked lyrics file.');
@@ -74,11 +91,43 @@ class MarkedLyricsStore {
     if (media.containsKey(mediaPath) && media[mediaPath] is! List) {
       throw const FormatException('Invalid marked lyrics for media.');
     }
+    return media;
+  }
+
+  static Future<bool> _add(
+    String mediaPath,
+    int lyricIndex,
+    File? targetFile,
+  ) async {
+    final target = targetFile ?? await file;
+    final data = await _readData(target);
+    final media = _mediaFor(data, mediaPath);
     final indices = _indicesFor(data, mediaPath);
     if (indices.contains(lyricIndex)) return false;
     indices.add(lyricIndex);
     indices.sort();
     media[mediaPath] = indices;
+    data['version'] = 1;
+    data['media'] = media;
+    await target.writeAsString(jsonEncode(data), flush: true);
+    return true;
+  }
+
+  static Future<bool> _remove(
+    String mediaPath,
+    int lyricIndex,
+    File? targetFile,
+  ) async {
+    final target = targetFile ?? await file;
+    final data = await _readData(target);
+    final media = _mediaFor(data, mediaPath);
+    final indices = _indicesFor(data, mediaPath);
+    if (!indices.remove(lyricIndex)) return false;
+    if (indices.isEmpty) {
+      media.remove(mediaPath);
+    } else {
+      media[mediaPath] = indices;
+    }
     data['version'] = 1;
     data['media'] = media;
     await target.writeAsString(jsonEncode(data), flush: true);
