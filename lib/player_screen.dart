@@ -60,6 +60,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
   int? _lastScrolledIndex;
   int? _lastPersistedLyricIndex;
   Future<void> _persistQueue = Future.value();
+  int _modeSelectionRevision = 0;
   OverlayEntry? _markNoticeEntry;
   Timer? _markNoticeTimer;
 
@@ -331,6 +332,20 @@ class _PlayerScreenState extends State<PlayerScreen> {
   int? _stickyHighlightIndex;
 
   void _seekToSubtitleIndex(int index) {
+    final pm = PlaybackManager.instance;
+    final marked = pm.testingLyricIndices;
+    if (pm.playerMode == PlayerMode.testing && marked.isNotEmpty) {
+      if (index <= 0) {
+        index = marked.first;
+      } else if (index >= _subtitles.length - 1) {
+        index = marked.last;
+      } else {
+        index = marked.firstWhere(
+          (value) => value >= index,
+          orElse: () => marked.first,
+        );
+      }
+    }
     if (index < 0 || index >= _subtitles.length) return;
     _seekToEntry(_subtitles[index]);
   }
@@ -352,6 +367,22 @@ class _PlayerScreenState extends State<PlayerScreen> {
   void _stepLyric(int direction) {
     final subs = _subtitles;
     if (subs.isEmpty) return;
+    final pm = PlaybackManager.instance;
+    final marked = pm.testingLyricIndices;
+    if (pm.playerMode == PlayerMode.testing && marked.isNotEmpty) {
+      final current = pm.activeTestingLyricIndex;
+      final target = direction > 0
+          ? marked.firstWhere(
+              (index) => index > current,
+              orElse: () => marked.first,
+            )
+          : marked.lastWhere(
+              (index) => index < current,
+              orElse: () => marked.last,
+            );
+      _seekToSubtitleIndex(target);
+      return;
+    }
     final cur = _currentIndex;
     int targetIdx;
     if (cur != null) {
@@ -453,7 +484,60 @@ class _PlayerScreenState extends State<PlayerScreen> {
     await MarkedLyricsStore.flush();
   }
 
+  String? get _currentMediaPath {
+    final rawPath = widget.videoFile?.path ?? widget.videoPath;
+    if (rawPath == null || rawPath.isEmpty) return null;
+    return p.normalize(p.isAbsolute(rawPath)
+        ? rawPath
+        : p.join(p.dirname(Platform.resolvedExecutable), rawPath));
+  }
+
   void _selectPlayerMode(PlayerMode mode) {
+    final revision = ++_modeSelectionRevision;
+    if (mode == PlayerMode.testing) {
+      unawaited(_enterTestingMode(revision));
+      return;
+    }
+    _applyPlayerMode(mode);
+  }
+
+  Future<void> _enterTestingMode(int revision) async {
+    final mediaPath = _currentMediaPath;
+    try {
+      final saved = mediaPath == null
+          ? <int>[]
+          : await MarkedLyricsStore.read(mediaPath);
+      if (!mounted || revision != _modeSelectionRevision) return;
+      final valid = saved
+          .where((index) => index >= 0 && index < _subtitles.length)
+          .toList();
+      if (valid.isEmpty) {
+        _applyPlayerMode(PlayerMode.marking);
+        _showTopMarkNotice(
+          'No marked lyrics for this file. Switched to Marking.',
+          const Duration(seconds: 3),
+        );
+        return;
+      }
+      final pm = PlaybackManager.instance;
+      pm.setTestingLyricIndices(valid);
+      _applyPlayerMode(PlayerMode.testing);
+      final current = pm.currentLyricIndex;
+      final target = valid.firstWhere(
+        (index) => index >= current,
+        orElse: () => valid.first,
+      );
+      pm.seek(_subtitles[target].start);
+    } catch (error) {
+      debugPrint('Could not load marked lyrics: $error');
+      if (!mounted || revision != _modeSelectionRevision) return;
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('Could not load marked lyrics for this file.'),
+      ));
+    }
+  }
+
+  void _applyPlayerMode(PlayerMode mode) {
     PlaybackManager.instance.setPlayerMode(mode);
     setState(() {});
     if (mode == PlayerMode.listening && PlaybackManager.instance.showLyric) {
@@ -469,7 +553,17 @@ class _PlayerScreenState extends State<PlayerScreen> {
     final mode = pm.playerMode;
     if (!pm.hasMedia || mode == PlayerMode.listening) return;
 
-    final index = _currentIndex ?? pm.currentLyricIndex;
+    var index = mode == PlayerMode.testing
+        ? pm.activeTestingLyricIndex
+        : (_currentIndex ?? pm.currentLyricIndex);
+    if (mode == PlayerMode.testing &&
+        pm.testingLyricIndices.isNotEmpty &&
+        !pm.testingLyricIndices.contains(index)) {
+      index = pm.testingLyricIndices.firstWhere(
+        (value) => value > index,
+        orElse: () => pm.testingLyricIndices.first,
+      );
+    }
     if (index < 0 || index >= _subtitles.length) {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
         content: Text('No lyric to mark at the current position.'),
@@ -477,17 +571,32 @@ class _PlayerScreenState extends State<PlayerScreen> {
       return;
     }
 
-    final rawPath = widget.videoFile?.path ?? widget.videoPath;
-    if (rawPath == null || rawPath.isEmpty) return;
-    final mediaPath = p.normalize(p.isAbsolute(rawPath)
-        ? rawPath
-        : p.join(p.dirname(Platform.resolvedExecutable), rawPath));
+    final mediaPath = _currentMediaPath;
+    if (mediaPath == null) return;
 
     try {
       final changed = mode == PlayerMode.marking
           ? await MarkedLyricsStore.add(mediaPath, index)
           : await MarkedLyricsStore.remove(mediaPath, index);
       if (!mounted) return;
+      if (mode == PlayerMode.testing &&
+          changed &&
+          pm.playerMode == PlayerMode.testing) {
+        final remaining = (await MarkedLyricsStore.read(mediaPath))
+            .where((value) => value >= 0 && value < _subtitles.length)
+            .toList();
+        if (!mounted || pm.playerMode != PlayerMode.testing) return;
+        if (remaining.isEmpty) {
+          _selectPlayerMode(PlayerMode.marking);
+        } else {
+          pm.setTestingLyricIndices(remaining);
+          final next = remaining.firstWhere(
+            (value) => value > index,
+            orElse: () => remaining.first,
+          );
+          pm.seek(_subtitles[next].start);
+        }
+      }
       _showTopMarkNotice(
         mode == PlayerMode.marking
             ? (changed
