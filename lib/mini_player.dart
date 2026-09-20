@@ -617,10 +617,12 @@ class MiniPlayerBar extends StatelessWidget {
   const MiniPlayerBar({
     super.key,
     required this.onChangeLastLyricMark,
+    required this.onShowMarkedLyrics,
     required this.onPlayerModeChanged,
   });
 
   final VoidCallback onChangeLastLyricMark;
+  final VoidCallback onShowMarkedLyrics;
   final ValueChanged<PlayerMode> onPlayerModeChanged;
 
   static const double height = 80;
@@ -658,7 +660,7 @@ class MiniPlayerBar extends StatelessWidget {
                 builder: (context, constraints) {
                   // Leave room for the transport buttons and mode selector.
                   final rulerWidth =
-                      (constraints.maxWidth - 750).clamp(80.0, 1400.0);
+                      (constraints.maxWidth - 790).clamp(80.0, 1400.0);
                   return Row(
                 children: [
                   // ── Progress ring ───────────────────────────────────────────
@@ -806,8 +808,17 @@ class MiniPlayerBar extends StatelessWidget {
                         ? onChangeLastLyricMark
                         : null,
                     tooltip: pm.playerMode == PlayerMode.testing
-                        ? 'Unmark last lyric (M)'
-                        : 'Mark last lyric (M)',
+                        ? 'Unmark current lyric (M)'
+                        : 'Mark current lyric (M)',
+                  ),
+                  const SizedBox(width: 4),
+                  _MiniBtn(
+                    icon: Icons.bookmarks_outlined,
+                    onPressed: hasMedia &&
+                            pm.playerMode != PlayerMode.listening
+                        ? onShowMarkedLyrics
+                        : null,
+                    tooltip: 'Show marked lyrics',
                   ),
 
                   const Spacer(),

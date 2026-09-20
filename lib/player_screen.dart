@@ -548,6 +548,83 @@ class _PlayerScreenState extends State<PlayerScreen> {
     }
   }
 
+  Future<void> _showMarkedLyrics() async {
+    final pm = PlaybackManager.instance;
+    if (!pm.hasMedia || pm.playerMode == PlayerMode.listening) return;
+    final mediaPath = _currentMediaPath;
+    if (mediaPath == null) return;
+
+    try {
+      final marked = await MarkedLyricsStore.read(mediaPath);
+      if (!mounted || pm.playerMode == PlayerMode.listening) return;
+      final theme = Theme.of(context);
+      await showDialog<void>(
+        context: context,
+        builder: (dialogContext) => AlertDialog(
+          title: Text('Marked lyrics (${marked.length})'),
+          content: SizedBox(
+            width: (MediaQuery.sizeOf(context).width - 120)
+                .clamp(240.0, 520.0)
+                .toDouble(),
+            height: (MediaQuery.sizeOf(context).height - 220)
+                .clamp(160.0, 520.0)
+                .toDouble(),
+            child: marked.isEmpty
+                ? const Center(child: Text('No marked lyrics for this file.'))
+                : ListView.separated(
+                    itemCount: marked.length,
+                    separatorBuilder: (_, __) => const Divider(height: 1),
+                    itemBuilder: (context, position) {
+                      final index = marked[position];
+                      final entry = index >= 0 && index < _subtitles.length
+                          ? _subtitles[index]
+                          : null;
+                      return Padding(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 12,
+                        ),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            SizedBox(
+                              width: 48,
+                              child: Text(
+                                '${index + 1}.',
+                                style: theme.textTheme.bodyMedium?.copyWith(
+                                  color: theme.colorScheme.primary,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ),
+                            Expanded(
+                              child: Text(
+                                entry?.text ?? 'Lyric text unavailable',
+                              ),
+                            ),
+                          ],
+                        ),
+                      );
+                    },
+                  ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(),
+              child: const Text('Close'),
+            ),
+          ],
+        ),
+      );
+    } catch (error) {
+      debugPrint('Could not load marked lyrics: $error');
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('Could not load marked lyrics for this file.'),
+      ));
+    }
+  }
+
   Future<void> _changeCurrentLyricMark() async {
     final pm = PlaybackManager.instance;
     final mode = pm.playerMode;
@@ -898,6 +975,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
                 child: MiniPlayerBar(
                   onChangeLastLyricMark: () =>
                       unawaited(_changeCurrentLyricMark()),
+                  onShowMarkedLyrics: () => unawaited(_showMarkedLyrics()),
                   onPlayerModeChanged: _selectPlayerMode,
                 ),
               ),
