@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
@@ -660,7 +661,7 @@ class MiniPlayerBar extends StatelessWidget {
                 builder: (context, constraints) {
                   // Leave room for the transport buttons and mode selector.
                   final rulerWidth =
-                      (constraints.maxWidth - 790).clamp(80.0, 1400.0);
+                      (constraints.maxWidth - 830).clamp(80.0, 1400.0);
                   return Row(
                 children: [
                   // ── Progress ring ───────────────────────────────────────────
@@ -778,6 +779,25 @@ class MiniPlayerBar extends StatelessWidget {
                             ? 'Subtitles on (S) — click to turn off'
                             : 'Subtitles off (S) — click to enable',
                     isActive: pm.showSubtitleTrack,
+                  ),
+                  const SizedBox(width: 4),
+
+                  // ── Desktop lyric overlay toggle ──
+                  _MiniBtn(
+                    icon: Icons.desktop_windows_rounded,
+                    onPressed: Platform.isWindows &&
+                            hasMedia &&
+                            pm.playerMode == PlayerMode.listening
+                        ? () => pm.toggleShowDesktopLyric()
+                        : null,
+                    tooltip: !Platform.isWindows
+                        ? 'Desktop lyrics are available on Windows'
+                        : pm.playerMode != PlayerMode.listening
+                            ? 'Desktop lyrics unavailable in this model'
+                            : pm.showDesktopLyric
+                                ? 'Desktop lyrics on — click to turn off'
+                                : 'Desktop lyrics off — click to turn on',
+                    isActive: pm.showDesktopLyric,
                   ),
                   const SizedBox(width: 4),
 

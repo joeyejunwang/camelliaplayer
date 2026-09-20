@@ -1,6 +1,8 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:media_kit/media_kit.dart';
 
 import 'subtitle_loader.dart';
@@ -93,9 +95,15 @@ class PlaybackManager extends ChangeNotifier {
   LyricRepeatMode _repeatMode = LyricRepeatMode.repeatTwo;
   PlayerMode _playerMode = PlayerMode.listening;
   bool _showSubtitleTrack = true;
+  bool _showDesktopLyric = false;
   bool _showLyric = true;
   bool _listeningShowSubtitleTrack = true;
+  bool _listeningShowDesktopLyric = false;
   bool _listeningShowLyric = true;
+  String? _desktopLyricText;
+  Future<void> _desktopLyricQueue = Future<void>.value();
+  static const _desktopLyricChannel =
+      MethodChannel('camellia_player/desktop_lyrics');
   List<int> _testingLyricIndices = const [];
   int _currentLyricRepeatCount = 0;
   int? _repeatLyricIndex;
@@ -129,6 +137,7 @@ class PlaybackManager extends ChangeNotifier {
   LyricRepeatMode get repeatMode => _repeatMode;
   PlayerMode get playerMode => _playerMode;
   bool get showSubtitleTrack => _showSubtitleTrack;
+  bool get showDesktopLyric => _showDesktopLyric;
   bool get showLyric => _showLyric;
   List<SubtitleEntry> get subtitles => _subtitles;
   bool get hasSubtitles => _subtitles.isNotEmpty;
@@ -178,6 +187,7 @@ class PlaybackManager extends ChangeNotifier {
       } else {
         _maybeLoopSegment();
       }
+      _syncDesktopLyric();
       notifyListeners();
     });
     _durationSub = p.stream.duration.listen((dur) {
@@ -228,9 +238,12 @@ class PlaybackManager extends ChangeNotifier {
     _repeatMode = LyricRepeatMode.repeatTwo;
     _playerMode = PlayerMode.listening;
     _showSubtitleTrack = true;
+    _showDesktopLyric = false;
     _showLyric = true;
     _listeningShowSubtitleTrack = true;
+    _listeningShowDesktopLyric = false;
     _listeningShowLyric = true;
+    _syncDesktopLyric();
     _testingLyricIndices = const [];
     _loopStart = null;
     _loopEnd = null;
@@ -252,6 +265,7 @@ class PlaybackManager extends ChangeNotifier {
   /// once the .srt file has finished parsing.
   void setSubtitles(List<SubtitleEntry> subs) {
     _subtitles = subs;
+    _syncDesktopLyric();
     _testingLyricIndices = const [];
     _currentLyricRepeatCount = 0;
     _repeatLyricIndex = null;
@@ -403,16 +417,20 @@ class PlaybackManager extends ChangeNotifier {
     if (_playerMode == mode) return;
     if (_playerMode == PlayerMode.listening) {
       _listeningShowSubtitleTrack = _showSubtitleTrack;
+      _listeningShowDesktopLyric = _showDesktopLyric;
       _listeningShowLyric = _showLyric;
     }
     _playerMode = mode;
     if (mode == PlayerMode.listening) {
       _showSubtitleTrack = _listeningShowSubtitleTrack;
+      _showDesktopLyric = _listeningShowDesktopLyric;
       _showLyric = _listeningShowLyric;
     } else {
       _showSubtitleTrack = false;
+      _showDesktopLyric = false;
       _showLyric = false;
     }
+    _syncDesktopLyric();
     if (mode != PlayerMode.testing) _testingLyricIndices = const [];
     _applySubtitleTrackVisibility();
     notifyListeners();
@@ -499,6 +517,41 @@ class PlaybackManager extends ChangeNotifier {
     _showSubtitleTrack = !_showSubtitleTrack;
     _applySubtitleTrackVisibility();
     notifyListeners();
+  }
+
+  void toggleShowDesktopLyric() {
+    if (!Platform.isWindows ||
+        !_hasMedia ||
+        _playerMode != PlayerMode.listening) {
+      return;
+    }
+    _showDesktopLyric = !_showDesktopLyric;
+    _listeningShowDesktopLyric = _showDesktopLyric;
+    _syncDesktopLyric();
+    notifyListeners();
+  }
+
+  void _syncDesktopLyric() {
+    if (!Platform.isWindows) return;
+    String? text;
+    if (_showDesktopLyric && _hasMedia &&
+        _playerMode == PlayerMode.listening) {
+      for (final entry in _subtitles.reversed) {
+        text = entry.textAt(_position);
+        if (text != null) break;
+      }
+    }
+    if (text == _desktopLyricText) return;
+    _desktopLyricText = text;
+    _desktopLyricQueue = _desktopLyricQueue.then((_) async {
+      if (text == null) {
+        await _desktopLyricChannel.invokeMethod<void>('hide');
+      } else {
+        await _desktopLyricChannel.invokeMethod<void>('show', text);
+      }
+    }).catchError((Object error) {
+      debugPrint('Could not update desktop lyric: $error');
+    });
   }
 
   void _applySubtitleTrackVisibility() {
@@ -661,9 +714,12 @@ class PlaybackManager extends ChangeNotifier {
     _repeatMode = LyricRepeatMode.repeatTwo;
     _playerMode = PlayerMode.listening;
     _showSubtitleTrack = true;
+    _showDesktopLyric = false;
     _showLyric = true;
     _listeningShowSubtitleTrack = true;
+    _listeningShowDesktopLyric = false;
     _listeningShowLyric = true;
+    _syncDesktopLyric();
     _testingLyricIndices = const [];
     _loopStart = null;
     _loopEnd = null;
