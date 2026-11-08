@@ -24,8 +24,13 @@ class _CustomTitleBarState extends State<CustomTitleBar> with WindowListener {
   }
 
   Future<void> _init() async {
-    _isMaximized = await windowManager.isMaximized();
-    if (mounted) setState(() {});
+    try {
+      _isMaximized = await windowManager.isMaximized();
+      if (mounted) setState(() {});
+    } catch (_) {
+      // Window-manager channels are unavailable in widget tests and on
+      // unsupported hosts. The title bar still renders in its restored state.
+    }
   }
 
   @override

@@ -6,8 +6,8 @@ import 'package:media_kit/media_kit.dart';
 import 'package:window_manager/window_manager.dart';
 
 import 'app_colors.dart';
-import 'home_screen.dart';
 import 'ios_home_screen.dart';
+import 'library_home_screen.dart';
 
 /// Main entry point for Camellia Player
 /// Handles the supported Windows, macOS, and iOS platforms.
@@ -89,24 +89,27 @@ class CamelliaPlayerApp extends StatelessWidget {
     // Windows and macOS use Material design. Seeded from the camellia
     // pink so every accent (buttons, sliders, progress) automatically
     // tracks the app icon's hue.
-    final darkScheme = ColorScheme.fromSeed(
-      seedColor: AppColors.camellia,
-      brightness: Brightness.dark,
-    ).copyWith(
-      // Re-tint the few surface roles to match the deep, slightly purple
-      // panel tone behind the app icon, so the app does not look generic
-      // M3-dark. These also flow into CustomTitleBar and the player.
-      surface: AppColors.videoBackdrop,
-      surfaceContainerLowest: AppColors.videoBackdrop,
-      surfaceContainerLow: AppColors.panelDark,
-      surfaceContainer: AppColors.panelDark,
-      surfaceContainerHigh: const Color(0xFF22161D),
-      surfaceContainerHighest: const Color(0xFF2A1B23),
-      outlineVariant: const Color(0xFF3A2A33),
-      primary: AppColors.camellia,
-      secondary: const Color(0xFFF48FB1), // lighter camellia for the secondary slot
-      tertiary: const Color(0xFFFFB3C7),
-    );
+    final darkScheme =
+        ColorScheme.fromSeed(
+          seedColor: AppColors.camellia,
+          brightness: Brightness.dark,
+        ).copyWith(
+          // Re-tint the few surface roles to match the deep, slightly purple
+          // panel tone behind the app icon, so the app does not look generic
+          // M3-dark. These also flow into CustomTitleBar and the player.
+          surface: AppColors.videoBackdrop,
+          surfaceContainerLowest: AppColors.videoBackdrop,
+          surfaceContainerLow: AppColors.panelDark,
+          surfaceContainer: AppColors.panelDark,
+          surfaceContainerHigh: const Color(0xFF22161D),
+          surfaceContainerHighest: const Color(0xFF2A1B23),
+          outlineVariant: const Color(0xFF3A2A33),
+          primary: AppColors.camellia,
+          secondary: const Color(
+            0xFFF48FB1,
+          ), // lighter camellia for the secondary slot
+          tertiary: const Color(0xFFFFB3C7),
+        );
 
     final lightScheme = ColorScheme.fromSeed(
       seedColor: AppColors.camellia,
@@ -135,7 +138,7 @@ class CamelliaPlayerApp extends StatelessWidget {
         ),
         iconTheme: const IconThemeData(color: Colors.white),
       ),
-      home: const HomeScreen(),
+      home: const LibraryHomeScreen(),
     );
   }
 }

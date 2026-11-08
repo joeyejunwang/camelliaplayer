@@ -25,7 +25,10 @@ IconData _getRepeatModeIcon(LyricRepeatMode mode) {
 /// Compact dropdown for selecting a [LyricRepeatMode]. Used by the
 /// mini-player to replace the previous cycle button.
 class _RepeatModeDropdown extends StatelessWidget {
-  const _RepeatModeDropdown({required this.repeatMode, required this.onChanged});
+  const _RepeatModeDropdown({
+    required this.repeatMode,
+    required this.onChanged,
+  });
 
   final LyricRepeatMode repeatMode;
   final ValueChanged<LyricRepeatMode?> onChanged;
@@ -141,12 +144,18 @@ class _PlayerModeDropdown extends StatelessWidget {
         decoration: BoxDecoration(
           color: theme.colorScheme.primaryContainer,
           borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: theme.colorScheme.primary.withValues(alpha: 0.35)),
+          border: Border.all(
+            color: theme.colorScheme.primary.withValues(alpha: 0.35),
+          ),
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.headphones_rounded, size: 17, color: theme.colorScheme.primary),
+            Icon(
+              Icons.headphones_rounded,
+              size: 17,
+              color: theme.colorScheme.primary,
+            ),
             const SizedBox(width: 7),
             Text(
               mode.label,
@@ -156,7 +165,11 @@ class _PlayerModeDropdown extends StatelessWidget {
               ),
             ),
             const SizedBox(width: 4),
-            Icon(Icons.arrow_drop_down_rounded, size: 18, color: theme.colorScheme.primary),
+            Icon(
+              Icons.arrow_drop_down_rounded,
+              size: 18,
+              color: theme.colorScheme.primary,
+            ),
           ],
         ),
       ),
@@ -286,7 +299,17 @@ class _VolumeSlider extends StatelessWidget {
                 thumbColor: theme.colorScheme.primary,
                 overlayColor: theme.colorScheme.primary.withValues(alpha: 0.12),
               ),
-              child: Slider(value: volume, onChanged: onChanged),
+              // Material Slider uses an OverlayPortal for its value indicator.
+              // In a pushed desktop route that portal can emit an orphan
+              // semantics node on Flutter 3.47.x, which corrupts the native
+              // accessibility tree (flutter/flutter#190357). A local,
+              // size-to-content Overlay keeps the portal in this subtree while
+              // preserving the slider's keyboard and screen-reader behavior.
+              child: Overlay.wrap(
+                alwaysSizeToContent: true,
+                clipBehavior: Clip.none,
+                child: Slider(value: volume, onChanged: onChanged),
+              ),
             ),
           ),
         ],
@@ -516,8 +539,8 @@ class _MiniBtn extends StatelessWidget {
             color: onPressed == null
                 ? theme.disabledColor
                 : isActive
-                    ? theme.colorScheme.onPrimaryContainer
-                    : null,
+                ? theme.colorScheme.onPrimaryContainer
+                : null,
           ),
         ),
       ),
@@ -553,8 +576,13 @@ class _LyricRulerPainter extends CustomPainter {
       ..color = theme.colorScheme.primary
       ..strokeWidth = 2;
 
-    final tickCount = totalCount > 50 ? 10 : (totalCount > 20 ? 5 : 1);
+    // Keep enough horizontal room for each label when the ruler shrinks.
+    final preferredTickCount = totalCount > 50 ? 10 : (totalCount > 20 ? 5 : 1);
+    final maxTickCount = math.max(1, (size.width / 32).floor());
+    final tickCount = math.min(preferredTickCount, maxTickCount);
     final step = totalCount > tickCount ? (totalCount / tickCount).floor() : 1;
+    final lastIndex = totalCount - 1;
+    const minimumLabelGap = 24.0;
 
     // Draw one tick per lyric line (i = 0 .. totalCount-1), so label "500"
     // sits exactly above subtitles[499].
@@ -562,7 +590,9 @@ class _LyricRulerPainter extends CustomPainter {
       final x =
           12 + (i / (totalCount - 1).clamp(1, totalCount)) * (size.width - 24);
       final isActive = i <= currentIndex;
-      final isMajor = (i % step == 0) || (i == totalCount - 1);
+      final isLast = i == lastIndex;
+      final isRegularMajor = i % step == 0;
+      final isMajor = isRegularMajor || isLast;
 
       paint.color = isActive
           ? theme.colorScheme.primary
@@ -576,7 +606,12 @@ class _LyricRulerPainter extends CustomPainter {
         paint,
       );
 
-      if (isMajor) {
+      final distanceToLastLabel =
+          ((lastIndex - i) / lastIndex.clamp(1, totalCount)) *
+          (size.width - 24);
+      final shouldPaintLabel =
+          isLast || (isRegularMajor && distanceToLastLabel >= minimumLabelGap);
+      if (shouldPaintLabel) {
         final textPainter = TextPainter(
           text: TextSpan(
             text: '${i + 1}',
@@ -590,7 +625,11 @@ class _LyricRulerPainter extends CustomPainter {
           textDirection: TextDirection.ltr,
         );
         textPainter.layout();
-        textPainter.paint(canvas, Offset(x - textPainter.width / 2, 2));
+        final labelX = (x - textPainter.width / 2).clamp(
+          0.0,
+          size.width - textPainter.width,
+        );
+        textPainter.paint(canvas, Offset(labelX, 2));
       }
     }
 
@@ -660,242 +699,249 @@ class MiniPlayerBar extends StatelessWidget {
               child: LayoutBuilder(
                 builder: (context, constraints) {
                   // Leave room for the transport buttons and mode selector.
-                  final rulerWidth =
-                      (constraints.maxWidth - 830).clamp(80.0, 1400.0);
+                  final rulerWidth = (constraints.maxWidth - 830).clamp(
+                    80.0,
+                    1400.0,
+                  );
                   return Row(
-                children: [
-                  // ── Progress ring ───────────────────────────────────────────
-                  const SizedBox(width: 20),
+                    children: [
+                      // ── Progress ring ───────────────────────────────────────────
+                      const SizedBox(width: 20),
 
-                  SizedBox(
-                    width: 44,
-                    height: 44,
-                    child: Stack(
-                      alignment: Alignment.center,
-                      children: [
-                        if (hasMedia)
-                          _CircleProgress(
-                            progress: progress,
-                            color: theme.colorScheme.primary,
-                            backgroundColor:
-                                theme.colorScheme.surfaceContainerHighest,
-                            strokeWidth: 3,
-                            size: 44,
-                          )
-                        else
-                          Container(
-                            width: 44,
-                            height: 44,
-                            decoration: BoxDecoration(
-                              shape: BoxShape.circle,
-                              color: theme.colorScheme.surfaceContainerHighest,
+                      SizedBox(
+                        width: 44,
+                        height: 44,
+                        child: Stack(
+                          alignment: Alignment.center,
+                          children: [
+                            if (hasMedia)
+                              _CircleProgress(
+                                progress: progress,
+                                color: theme.colorScheme.primary,
+                                backgroundColor:
+                                    theme.colorScheme.surfaceContainerHighest,
+                                strokeWidth: 3,
+                                size: 44,
+                              )
+                            else
+                              Container(
+                                width: 44,
+                                height: 44,
+                                decoration: BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  color:
+                                      theme.colorScheme.surfaceContainerHighest,
+                                ),
+                              ),
+                            GestureDetector(
+                              onTap: hasMedia ? () => pm.togglePlay() : null,
+                              child: Icon(
+                                hasMedia
+                                    ? (isPlaying
+                                          ? Icons.pause_rounded
+                                          : Icons.play_arrow_rounded)
+                                    : Icons.music_note_outlined,
+                                color: hasMedia
+                                    ? theme.colorScheme.primary
+                                    : theme.colorScheme.onSurfaceVariant,
+                                size: 28,
+                              ),
                             ),
-                          ),
-                        GestureDetector(
-                          onTap: hasMedia ? () => pm.togglePlay() : null,
-                          child: Icon(
-                            hasMedia
-                                ? (isPlaying
-                                      ? Icons.pause_rounded
-                                      : Icons.play_arrow_rounded)
-                                : Icons.music_note_outlined,
-                            color: hasMedia
-                                ? theme.colorScheme.primary
-                                : theme.colorScheme.onSurfaceVariant,
-                            size: 28,
-                          ),
+                          ],
                         ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(width: 16),
+                      ),
+                      const SizedBox(width: 16),
 
-                  if (hasMedia)
-                    _PlayerModeDropdown(
-                      mode: pm.playerMode,
-                      onChanged: onPlayerModeChanged,
-                    )
-                  else
-                    const SizedBox(width: 160, height: 36),
-                  const SizedBox(width: 8),
+                      if (hasMedia)
+                        _PlayerModeDropdown(
+                          mode: pm.playerMode,
+                          onChanged: onPlayerModeChanged,
+                        )
+                      else
+                        const SizedBox(width: 160, height: 36),
+                      const SizedBox(width: 8),
 
-                  // ── Transport controls: skip-back / rewind / fast-forward / skip-next ──
-                  if (hasMedia)
-                    Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        _MiniBtn(
-                          icon: Icons.skip_previous_rounded,
-                          onPressed: () => pm.playFirstLyric(),
-                          tooltip: 'First lyric ←',
-                        ),
-                        const SizedBox(width: 4),
-                        _MiniBtn(
-                          icon: Icons.fast_rewind_rounded,
-                          onPressed: () => pm.playPreviousLyric(),
-                          tooltip: 'Previous lyric ←',
-                        ),
-                        const SizedBox(width: 4),
-                        _MiniBtn(
-                          icon: Icons.fast_forward_rounded,
-                          onPressed: () => pm.playNextLyric(),
-                          tooltip: 'Next lyric →',
-                        ),
-                        const SizedBox(width: 4),
-                        _MiniBtn(
-                          icon: Icons.skip_next_rounded,
-                          onPressed: () => pm.playLastLyric(),
-                          tooltip: 'Last lyric End',
-                        ),
-                        const SizedBox(width: 4),
-                      ],
-                    )
-                  else
-                    const SizedBox(width: 152),
+                      // ── Transport controls: skip-back / rewind / fast-forward / skip-next ──
+                      if (hasMedia)
+                        Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            _MiniBtn(
+                              icon: Icons.skip_previous_rounded,
+                              onPressed: () => pm.playFirstLyric(),
+                              tooltip: 'First lyric ←',
+                            ),
+                            const SizedBox(width: 4),
+                            _MiniBtn(
+                              icon: Icons.fast_rewind_rounded,
+                              onPressed: () => pm.playPreviousLyric(),
+                              tooltip: 'Previous lyric ←',
+                            ),
+                            const SizedBox(width: 4),
+                            _MiniBtn(
+                              icon: Icons.fast_forward_rounded,
+                              onPressed: () => pm.playNextLyric(),
+                              tooltip: 'Next lyric →',
+                            ),
+                            const SizedBox(width: 4),
+                            _MiniBtn(
+                              icon: Icons.skip_next_rounded,
+                              onPressed: () => pm.playLastLyric(),
+                              tooltip: 'Last lyric End',
+                            ),
+                            const SizedBox(width: 4),
+                          ],
+                        )
+                      else
+                        const SizedBox(width: 152),
 
-                  // ── Lyric repeat mode dropdown ──
-                  if (hasMedia)
-                    _RepeatModeDropdown(
-                      repeatMode: pm.repeatMode,
-                      onChanged: (mode) {
-                        if (mode != null) pm.setRepeatMode(mode);
-                      },
-                    )
-                  else
-                    const SizedBox(width: 36, height: 36),
-                  const SizedBox(width: 4),
+                      // ── Lyric repeat mode dropdown ──
+                      if (hasMedia)
+                        _RepeatModeDropdown(
+                          repeatMode: pm.repeatMode,
+                          onChanged: (mode) {
+                            if (mode != null) pm.setRepeatMode(mode);
+                          },
+                        )
+                      else
+                        const SizedBox(width: 36, height: 36),
+                      const SizedBox(width: 4),
 
-                  // ── Subtitle track toggle ──
-                  _MiniBtn(
-                    icon: pm.showSubtitleTrack
-                        ? Icons.closed_caption_rounded
-                        : Icons.closed_caption_off_rounded,
-                    onPressed: hasMedia && pm.playerMode == PlayerMode.listening
-                        ? () => pm.toggleShowSubtitleTrack()
-                        : null,
-                    tooltip: pm.playerMode != PlayerMode.listening
-                        ? 'Subtitles unavailable in this model'
-                        : pm.showSubtitleTrack
+                      // ── Subtitle track toggle ──
+                      _MiniBtn(
+                        icon: pm.showSubtitleTrack
+                            ? Icons.closed_caption_rounded
+                            : Icons.closed_caption_off_rounded,
+                        onPressed:
+                            hasMedia && pm.playerMode == PlayerMode.listening
+                            ? () => pm.toggleShowSubtitleTrack()
+                            : null,
+                        tooltip: pm.playerMode != PlayerMode.listening
+                            ? 'Subtitles unavailable in this model'
+                            : pm.showSubtitleTrack
                             ? 'Subtitles on (S) — click to turn off'
                             : 'Subtitles off (S) — click to enable',
-                    isActive: pm.showSubtitleTrack,
-                  ),
-                  const SizedBox(width: 4),
+                        isActive: pm.showSubtitleTrack,
+                      ),
+                      const SizedBox(width: 4),
 
-                  // ── Lyric visibility toggle ──
-                  _MiniBtn(
-                    icon: pm.showLyric
-                        ? Icons.visibility_rounded
-                        : Icons.visibility_off_rounded,
-                    onPressed: hasMedia && pm.playerMode == PlayerMode.listening
-                        ? () => pm.toggleShowLyric()
-                        : null,
-                    tooltip: pm.playerMode != PlayerMode.listening
-                        ? 'Lyrics unavailable in this model'
-                        : pm.showLyric
+                      // ── Lyric visibility toggle ──
+                      _MiniBtn(
+                        icon: pm.showLyric
+                            ? Icons.visibility_rounded
+                            : Icons.visibility_off_rounded,
+                        onPressed:
+                            hasMedia && pm.playerMode == PlayerMode.listening
+                            ? () => pm.toggleShowLyric()
+                            : null,
+                        tooltip: pm.playerMode != PlayerMode.listening
+                            ? 'Lyrics unavailable in this model'
+                            : pm.showLyric
                             ? 'Show lyric on (L) — click to turn off'
                             : 'Show lyric off (L) — click to show current lyric',
-                    isActive: pm.showLyric,
-                  ),
-                  const SizedBox(width: 4),
-                  
-                  // ── Desktop lyric overlay toggle ──
-                  _MiniBtn(
-                    icon: Icons.desktop_windows_rounded,
-                    onPressed: Platform.isWindows &&
-                            hasMedia &&
-                            pm.playerMode == PlayerMode.listening
-                        ? () => pm.toggleShowDesktopLyric()
-                        : null,
-                    tooltip: !Platform.isWindows
-                        ? 'Desktop lyrics are available on Windows'
-                        : pm.playerMode != PlayerMode.listening
+                        isActive: pm.showLyric,
+                      ),
+                      const SizedBox(width: 4),
+
+                      // ── Desktop lyric overlay toggle ──
+                      _MiniBtn(
+                        icon: Icons.desktop_windows_rounded,
+                        onPressed:
+                            Platform.isWindows &&
+                                hasMedia &&
+                                pm.playerMode == PlayerMode.listening
+                            ? () => pm.toggleShowDesktopLyric()
+                            : null,
+                        tooltip: !Platform.isWindows
+                            ? 'Desktop lyrics are available on Windows'
+                            : pm.playerMode != PlayerMode.listening
                             ? 'Desktop lyrics unavailable in this model'
                             : pm.showDesktopLyric
-                                ? 'Desktop lyrics on — drag to move; drag an edge to resize'
-                                : 'Desktop lyrics off — click to turn on',
-                    isActive: pm.showDesktopLyric,
-                  ),
-                  const SizedBox(width: 4),
-
-                  _MiniBtn(
-                    icon: pm.playerMode == PlayerMode.testing
-                        ? Icons.bookmark_remove_rounded
-                        : Icons.bookmark_add_rounded,
-                    onPressed: hasMedia &&
-                            pm.hasSubtitles &&
-                            pm.playerMode != PlayerMode.listening
-                        ? onChangeLastLyricMark
-                        : null,
-                    tooltip: pm.playerMode == PlayerMode.testing
-                        ? 'Unmark current lyric (M)'
-                        : 'Mark current lyric (M)',
-                  ),
-                  const SizedBox(width: 4),
-                  _MiniBtn(
-                    icon: Icons.bookmarks_outlined,
-                    onPressed: hasMedia &&
-                            pm.playerMode != PlayerMode.listening
-                        ? onShowMarkedLyrics
-                        : null,
-                    tooltip: 'Show marked lyrics',
-                  ),
-
-                  const Spacer(),
-
-                  // ── Lyric progress ruler ──────────────────────────────────────────
-                  if (hasMedia && pm.hasSubtitles)
-                    SizedBox(
-                      width: rulerWidth,
-                      height: 24,
-                      child: LayoutBuilder(
-                        builder: (context, constraints) {
-                          final w = constraints.maxWidth;
-                          return CustomPaint(
-                            painter: _LyricRulerPainter(
-                              totalCount: pm.subtitles.length,
-                              currentIndex: pm.currentLyricIndex,
-                              theme: theme,
-                            ),
-                            child: GestureDetector(
-                              onTapDown: (details) {
-                                final box =
-                                    context.findRenderObject() as RenderBox;
-                                final local = box.globalToLocal(
-                                  details.globalPosition,
-                                );
-                                final ratio = ((local.dx - 12) / (w - 24))
-                                    .clamp(0.0, 1.0);
-                                final target =
-                                    (ratio * (pm.subtitles.length - 1))
-                                        .round()
-                                        .clamp(0, pm.subtitles.length - 1);
-                                if (target >= 0 &&
-                                    target < pm.subtitles.length) {
-                                  final entry = pm.subtitles[target];
-                                  pm.seek(entry.start);
-                                }
-                              },
-                            ),
-                          );
-                        },
+                            ? 'Desktop lyrics on — drag to move; drag an edge to resize'
+                            : 'Desktop lyrics off — click to turn on',
+                        isActive: pm.showDesktopLyric,
                       ),
-                    ),
+                      const SizedBox(width: 4),
 
-                  const Spacer(),
-
-                  // ── Volume slider ────────────────────────────────────────────
-                  if (hasMedia)
-                    SizedBox(
-                      width: 100,
-                      child: _VolumeSlider(
-                        volume: vol,
-                        onChanged: (v) => pm.setVolume(v),
+                      _MiniBtn(
+                        icon: pm.playerMode == PlayerMode.testing
+                            ? Icons.bookmark_remove_rounded
+                            : Icons.bookmark_add_rounded,
+                        onPressed:
+                            hasMedia &&
+                                pm.hasSubtitles &&
+                                pm.playerMode != PlayerMode.listening
+                            ? onChangeLastLyricMark
+                            : null,
+                        tooltip: pm.playerMode == PlayerMode.testing
+                            ? 'Unmark current lyric (M)'
+                            : 'Mark current lyric (M)',
                       ),
-                    )
-                  else
-                    const SizedBox(width: 100),
-                ],
+                      const SizedBox(width: 4),
+                      _MiniBtn(
+                        icon: Icons.bookmarks_outlined,
+                        onPressed:
+                            hasMedia && pm.playerMode != PlayerMode.listening
+                            ? onShowMarkedLyrics
+                            : null,
+                        tooltip: 'Show marked lyrics',
+                      ),
+
+                      const Spacer(),
+
+                      // ── Lyric progress ruler ──────────────────────────────────────────
+                      if (hasMedia && pm.hasSubtitles)
+                        SizedBox(
+                          width: rulerWidth,
+                          height: 24,
+                          child: LayoutBuilder(
+                            builder: (context, constraints) {
+                              final w = constraints.maxWidth;
+                              return CustomPaint(
+                                painter: _LyricRulerPainter(
+                                  totalCount: pm.subtitles.length,
+                                  currentIndex: pm.currentLyricIndex,
+                                  theme: theme,
+                                ),
+                                child: GestureDetector(
+                                  onTapDown: (details) {
+                                    final box =
+                                        context.findRenderObject() as RenderBox;
+                                    final local = box.globalToLocal(
+                                      details.globalPosition,
+                                    );
+                                    final ratio = ((local.dx - 12) / (w - 24))
+                                        .clamp(0.0, 1.0);
+                                    final target =
+                                        (ratio * (pm.subtitles.length - 1))
+                                            .round()
+                                            .clamp(0, pm.subtitles.length - 1);
+                                    if (target >= 0 &&
+                                        target < pm.subtitles.length) {
+                                      final entry = pm.subtitles[target];
+                                      pm.seek(entry.start);
+                                    }
+                                  },
+                                ),
+                              );
+                            },
+                          ),
+                        ),
+
+                      const Spacer(),
+
+                      // ── Volume slider ────────────────────────────────────────────
+                      if (hasMedia)
+                        SizedBox(
+                          width: 100,
+                          child: _VolumeSlider(
+                            volume: vol,
+                            onChanged: (v) => pm.setVolume(v),
+                          ),
+                        )
+                      else
+                        const SizedBox(width: 100),
+                    ],
                   );
                 },
               ),
