@@ -45,6 +45,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
   late final VideoController _videoController;
   List<SubtitleEntry> _subtitles = const [];
   bool _subtitleFileFound = false;
+
   /// Throttle for the position-driven setState. The player emits
   /// position at the display refresh rate, but humans only need lyric
   /// highlights to update a handful of times per second. Choking the
@@ -94,6 +95,9 @@ class _PlayerScreenState extends State<PlayerScreen> {
     pm.onPlayNextLyric = () => _stepLyric(1);
     pm.onPlayFirstLyric = () => _seekToSubtitleIndex(0);
     pm.onPlayLastLyric = () => _seekToSubtitleIndex(_subtitles.length - 1);
+    pm.onShowLyricChanged = () {
+      if (mounted) setState(() {});
+    };
 
     _bootstrap();
     _positionSub = pm.player.stream.position.listen((pos) {
@@ -109,8 +113,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
       // accessibility bridge throw "Failed to update ui::AXTree"
       // warnings when SemanticsNode ids get recycled mid-update.
       final now = DateTime.now();
-      if (now.difference(_lastPositionRebuild) <
-          _positionTickMinInterval) {
+      if (now.difference(_lastPositionRebuild) < _positionTickMinInterval) {
         return;
       }
       _lastPositionRebuild = now;
@@ -146,9 +149,11 @@ class _PlayerScreenState extends State<PlayerScreen> {
         await pm.jumpToLyricIndex(_resolveInitialLyricIndex());
       } else if (pm.hasMedia) {
         if (widget.initialLyricIndex != null || _subtitleFileFound) {
-          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-            content: Text('Could not load lyrics for this video.'),
-          ));
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Could not load lyrics for this video.'),
+            ),
+          );
           return;
         }
         pm.play();
@@ -156,9 +161,11 @@ class _PlayerScreenState extends State<PlayerScreen> {
     } catch (error) {
       debugPrint('Could not start playback at the lyric: $error');
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-        content: Text('Could not seek to the lyric. Playback is paused.'),
-      ));
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Could not seek to the lyric. Playback is paused.'),
+        ),
+      );
     }
   }
 
@@ -224,10 +231,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
     int bestScore = -1;
     await for (final entity in directory.list(followLinks: false)) {
       if (entity is! File) continue;
-      final name = entity.path
-          .split(Platform.pathSeparator)
-          .last
-          .toLowerCase();
+      final name = entity.path.split(Platform.pathSeparator).last.toLowerCase();
       final dot = name.lastIndexOf('.');
       if (dot <= 0) continue;
       final ext = name.substring(dot + 1);
@@ -235,10 +239,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
       onlySubtitle = entity;
       subtitleCount++;
       final stem = name.substring(0, dot);
-      final baseStem = base
-          .split(Platform.pathSeparator)
-          .last
-          .toLowerCase();
+      final baseStem = base.split(Platform.pathSeparator).last.toLowerCase();
       if (stem != baseStem &&
           !stem.startsWith('$baseStem.') &&
           !stem.startsWith('$baseStem-') &&
@@ -313,6 +314,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
     pm.onPlayNextLyric = null;
     pm.onPlayFirstLyric = null;
     pm.onPlayLastLyric = null;
+    pm.onShowLyricChanged = null;
     pm.stop();
     super.dispose();
   }
@@ -487,9 +489,11 @@ class _PlayerScreenState extends State<PlayerScreen> {
   String? get _currentMediaPath {
     final rawPath = widget.videoFile?.path ?? widget.videoPath;
     if (rawPath == null || rawPath.isEmpty) return null;
-    return p.normalize(p.isAbsolute(rawPath)
-        ? rawPath
-        : p.join(p.dirname(Platform.resolvedExecutable), rawPath));
+    return p.normalize(
+      p.isAbsolute(rawPath)
+          ? rawPath
+          : p.join(p.dirname(Platform.resolvedExecutable), rawPath),
+    );
   }
 
   void _selectPlayerMode(PlayerMode mode) {
@@ -531,9 +535,11 @@ class _PlayerScreenState extends State<PlayerScreen> {
     } catch (error) {
       debugPrint('Could not load marked lyrics: $error');
       if (!mounted || revision != _modeSelectionRevision) return;
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-        content: Text('Could not load marked lyrics for this file.'),
-      ));
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Could not load marked lyrics for this file.'),
+        ),
+      );
     }
   }
 
@@ -550,13 +556,21 @@ class _PlayerScreenState extends State<PlayerScreen> {
 
   Future<void> _showMarkedLyrics() async {
     final pm = PlaybackManager.instance;
-    if (!pm.hasMedia || pm.playerMode == PlayerMode.listening) return;
+    if (!pm.hasMedia ||
+        (pm.playerMode != PlayerMode.marking &&
+            pm.playerMode != PlayerMode.testing)) {
+      return;
+    }
     final mediaPath = _currentMediaPath;
     if (mediaPath == null) return;
 
     try {
       final marked = await MarkedLyricsStore.read(mediaPath);
-      if (!mounted || pm.playerMode == PlayerMode.listening) return;
+      if (!mounted ||
+          (pm.playerMode != PlayerMode.marking &&
+              pm.playerMode != PlayerMode.testing)) {
+        return;
+      }
       await showDialog<void>(
         context: context,
         builder: (_) => _MarkedLyricsDialog(
@@ -569,9 +583,11 @@ class _PlayerScreenState extends State<PlayerScreen> {
     } catch (error) {
       debugPrint('Could not load marked lyrics: $error');
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-        content: Text('Could not load marked lyrics for this file.'),
-      ));
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Could not load marked lyrics for this file.'),
+        ),
+      );
     }
   }
 
@@ -599,7 +615,10 @@ class _PlayerScreenState extends State<PlayerScreen> {
   Future<void> _changeCurrentLyricMark() async {
     final pm = PlaybackManager.instance;
     final mode = pm.playerMode;
-    if (!pm.hasMedia || mode == PlayerMode.listening) return;
+    if (!pm.hasMedia ||
+        (mode != PlayerMode.marking && mode != PlayerMode.testing)) {
+      return;
+    }
 
     var index = mode == PlayerMode.testing
         ? pm.activeTestingLyricIndex
@@ -613,9 +632,11 @@ class _PlayerScreenState extends State<PlayerScreen> {
       );
     }
     if (index < 0 || index >= _subtitles.length) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-        content: Text('No lyric to mark at the current position.'),
-      ));
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('No lyric to mark at the current position.'),
+        ),
+      );
       return;
     }
 
@@ -637,19 +658,19 @@ class _PlayerScreenState extends State<PlayerScreen> {
       _showTopMarkNotice(
         mode == PlayerMode.marking
             ? (changed
-                  ? 'Marked lyric ${index+1}.'
-                  : 'Lyric ${index+1} is already marked.')
+                  ? 'Marked lyric ${index + 1}.'
+                  : 'Lyric ${index + 1} is already marked.')
             : (changed
-                  ? 'Unmarked lyric ${index+1}.'
-                  : 'Lyric ${index+1} is not marked.'),
+                  ? 'Unmarked lyric ${index + 1}.'
+                  : 'Lyric ${index + 1} is not marked.'),
         const Duration(milliseconds: 3000),
       );
     } catch (error) {
       debugPrint('Could not update marked lyric: $error');
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-        content: Text('Could not update marked lyric.'),
-      ));
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Could not update marked lyric.')),
+      );
     }
   }
 
@@ -750,7 +771,9 @@ class _PlayerScreenState extends State<PlayerScreen> {
         const SingleActivator(LogicalKeyboardKey.keyL): () =>
             pm.toggleShowLyric(),
         const SingleActivator(LogicalKeyboardKey.keyM): () {
-          if (pm.hasMedia && pm.playerMode != PlayerMode.listening) {
+          if (pm.hasMedia &&
+              (pm.playerMode == PlayerMode.marking ||
+                  pm.playerMode == PlayerMode.testing)) {
             unawaited(_changeCurrentLyricMark());
           }
         },
@@ -834,10 +857,8 @@ class _PlayerScreenState extends State<PlayerScreen> {
                                     vertical: 8,
                                   ),
                                   decoration: BoxDecoration(
-                                    color: Colors.black
-                                        .withValues(alpha: 0.55),
-                                    borderRadius:
-                                        BorderRadius.circular(8),
+                                    color: Colors.black.withValues(alpha: 0.55),
+                                    borderRadius: BorderRadius.circular(8),
                                   ),
                                   child: Text(
                                     _subtitles[_currentIndex!].text,
@@ -893,7 +914,9 @@ class _PlayerScreenState extends State<PlayerScreen> {
                               color: Colors.black.withValues(alpha: 0.5),
                               borderRadius: BorderRadius.circular(20),
                               child: InkWell(
-                                onTap: pm.playerMode == PlayerMode.listening
+                                onTap:
+                                    pm.playerMode == PlayerMode.listening ||
+                                        pm.playerMode == PlayerMode.talking
                                     ? () => pm.toggleShowLyric()
                                     : null,
                                 borderRadius: BorderRadius.circular(20),
@@ -903,7 +926,9 @@ class _PlayerScreenState extends State<PlayerScreen> {
                                     PlaybackManager.instance.showLyric
                                         ? Icons.view_sidebar
                                         : Icons.view_sidebar_outlined,
-                                    color: pm.playerMode == PlayerMode.listening
+                                    color:
+                                        pm.playerMode == PlayerMode.listening ||
+                                            pm.playerMode == PlayerMode.talking
                                         ? Colors.white
                                         : Colors.white38,
                                     size: 22,
@@ -991,9 +1016,9 @@ class _MarkedLyricsDialogState extends State<_MarkedLyricsDialog> {
       debugPrint('Could not remove marked lyric: $error');
       if (!mounted) return;
       setState(() => _removingIndex = null);
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-        content: Text('Could not remove marked lyric.'),
-      ));
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Could not remove marked lyric.')),
+      );
     }
   }
 
@@ -1038,9 +1063,7 @@ class _MarkedLyricsDialogState extends State<_MarkedLyricsDialog> {
                           ),
                         ),
                         Expanded(
-                          child: Text(
-                            entry?.text ?? 'Lyric text unavailable',
-                          ),
+                          child: Text(entry?.text ?? 'Lyric text unavailable'),
                         ),
                         const SizedBox(width: 8),
                         IconButton(
@@ -1051,8 +1074,10 @@ class _MarkedLyricsDialogState extends State<_MarkedLyricsDialog> {
                                     strokeWidth: 2,
                                   ),
                                 )
-                              : const Icon(Icons.delete_outline_rounded,
-                                  size: 18),
+                              : const Icon(
+                                  Icons.delete_outline_rounded,
+                                  size: 18,
+                                ),
                           color: theme.colorScheme.primary,
                           tooltip: 'Remove lyric ${index + 1}',
                           padding: EdgeInsets.zero,

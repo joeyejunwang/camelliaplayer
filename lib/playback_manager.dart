@@ -62,6 +62,7 @@ enum LyricRepeatMode {
 /// The selected player mode.
 enum PlayerMode {
   listening('Listening'),
+  talking('Talking'),
   marking('Marking'),
   testing('Testing');
 
@@ -102,17 +103,21 @@ class PlaybackManager extends ChangeNotifier {
   bool _listeningShowLyric = true;
   String? _desktopLyricText;
   Future<void> _desktopLyricQueue = Future<void>.value();
-  static const _desktopLyricChannel =
-      MethodChannel('camellia_player/desktop_lyrics');
+  static const _desktopLyricChannel = MethodChannel(
+    'camellia_player/desktop_lyrics',
+  );
   List<int> _testingLyricIndices = const [];
   int _currentLyricRepeatCount = 0;
   int? _repeatLyricIndex;
   Duration? _automaticSeekTarget;
   int _seekRevision = 0;
+  Timer? _talkingPauseTimer;
+  int? _talkingNextIndex;
   VoidCallback? onPlayPreviousLyric;
   VoidCallback? onPlayNextLyric;
   VoidCallback? onPlayFirstLyric;
   VoidCallback? onPlayLastLyric;
+  VoidCallback? onShowLyricChanged;
 
   /// The active subtitle list pushed in by the player screen once it has
   /// finished loading the .srt file. Used by [_maybeAdvanceLyric] to walk
@@ -142,6 +147,12 @@ class PlaybackManager extends ChangeNotifier {
   List<SubtitleEntry> get subtitles => _subtitles;
   bool get hasSubtitles => _subtitles.isNotEmpty;
   List<int> get testingLyricIndices => _testingLyricIndices;
+  bool get isTalkingPause => _talkingPauseTimer != null;
+
+  /// Gives the learner roughly one lyric-length turn to speak, without
+  /// making very short cues frantic or long cues stall the session.
+  static Duration talkingPauseDuration(Duration lyricDuration) =>
+      Duration(milliseconds: lyricDuration.inMilliseconds.clamp(2000, 10000));
 
   int get currentLyricIndex {
     if (_subtitles.isEmpty) return -1;
@@ -209,7 +220,8 @@ class PlaybackManager extends ChangeNotifier {
       if (_playerMode == PlayerMode.testing &&
           _testingLyricIndices.isNotEmpty) {
         final current = _repeatLyricIndex;
-        final index = _repeatMode == LyricRepeatMode.repeatAll &&
+        final index =
+            _repeatMode == LyricRepeatMode.repeatAll &&
                 current != null &&
                 _testingLyricIndices.contains(current)
             ? current
@@ -231,6 +243,7 @@ class PlaybackManager extends ChangeNotifier {
   }
 
   Future<void> setMedia(Media media, {String? title}) async {
+    _cancelTalkingPause();
     _hasMedia = false;
     _mediaTitle = title ?? media.uri.toString();
     _position = Duration.zero;
@@ -264,6 +277,7 @@ class PlaybackManager extends ChangeNotifier {
   /// logic can walk through every lyric. Call this from the player screen
   /// once the .srt file has finished parsing.
   void setSubtitles(List<SubtitleEntry> subs) {
+    _cancelTalkingPause();
     _subtitles = subs;
     _syncDesktopLyric();
     _testingLyricIndices = const [];
@@ -303,9 +317,9 @@ class PlaybackManager extends ChangeNotifier {
   /// lifecycle hooks like didUpdateWidget → setLyricLoopSegment.
   void seek(Duration d) {
     if (!_hasMedia) return;
+    _cancelTalkingPause();
     int? testingIndex;
-    if (_playerMode == PlayerMode.testing &&
-        _testingLyricIndices.isNotEmpty) {
+    if (_playerMode == PlayerMode.testing && _testingLyricIndices.isNotEmpty) {
       final index = _testingIndexForTime(d);
       testingIndex = index;
       d = _subtitles[index].start;
@@ -323,16 +337,23 @@ class PlaybackManager extends ChangeNotifier {
     // Swallow any error from the underlying media_kit call so a failed
     // seek never crashes the UI; playback will resume from the next valid
     // position tick.
-    player.seek(d).then((_) {
-      if (revision == _seekRevision && _automaticSeekTarget == d) {
-        _automaticSeekTarget = null;
-      }
-    }).catchError((_) {
-      if (revision == _seekRevision) _automaticSeekTarget = null;
-    });
+    player
+        .seek(d)
+        .then((_) {
+          if (revision == _seekRevision && _automaticSeekTarget == d) {
+            _automaticSeekTarget = null;
+          }
+        })
+        .catchError((_) {
+          if (revision == _seekRevision) _automaticSeekTarget = null;
+        });
   }
 
   void togglePlay() {
+    if (_talkingPauseTimer != null) {
+      _finishTalkingPause();
+      return;
+    }
     player.playOrPause();
   }
 
@@ -357,8 +378,7 @@ class PlaybackManager extends ChangeNotifier {
     final subs = _subtitles;
     if (subs.isEmpty || !_hasMedia) return;
     var safe = index.clamp(0, subs.length - 1);
-    if (_playerMode == PlayerMode.testing &&
-        _testingLyricIndices.isNotEmpty) {
+    if (_playerMode == PlayerMode.testing && _testingLyricIndices.isNotEmpty) {
       safe = _testingIndexAtOrAfter(safe);
     }
     final p = player;
@@ -367,8 +387,8 @@ class PlaybackManager extends ChangeNotifier {
     final mediaDuration = p.state.duration > Duration.zero
         ? p.state.duration
         : await p.stream.duration
-          .firstWhere((duration) => duration > Duration.zero)
-          .timeout(const Duration(seconds: 10));
+              .firstWhere((duration) => duration > Duration.zero)
+              .timeout(const Duration(seconds: 10));
     if (!_hasMedia) return;
     final target = subs[safe].start;
     if (target >= mediaDuration && target > Duration.zero) {
@@ -408,13 +428,15 @@ class PlaybackManager extends ChangeNotifier {
     await jumpToLyricIndex(0);
   }
 
-  /// Marking and Testing hide lyrics and subtitles while keeping the user's
-  /// Listening visibility choices for when that mode is selected again.
+  /// Practice modes hide subtitles while keeping the user's Listening
+  /// visibility choices for when that mode is selected again. Talking starts
+  /// with the side lyrics hidden, but the user may reveal them while speaking.
   void setPlayerMode(PlayerMode mode) {
     if (mode == PlayerMode.testing && _testingLyricIndices.isEmpty) {
       mode = PlayerMode.marking;
     }
     if (_playerMode == mode) return;
+    if (mode != PlayerMode.talking) _cancelTalkingPause();
     if (_playerMode == PlayerMode.listening) {
       _listeningShowSubtitleTrack = _showSubtitleTrack;
       _listeningShowDesktopLyric = _showDesktopLyric;
@@ -436,13 +458,18 @@ class PlaybackManager extends ChangeNotifier {
     notifyListeners();
   }
 
-  void setTestingLyricIndices(List<int> indices, {bool preserveCurrent = false}) {
-    final valid = indices
-        .where((index) => index >= 0 && index < _subtitles.length)
-        .toSet()
-        .toList()
-      ..sort();
-    final keepCurrent = preserveCurrent &&
+  void setTestingLyricIndices(
+    List<int> indices, {
+    bool preserveCurrent = false,
+  }) {
+    final valid =
+        indices
+            .where((index) => index >= 0 && index < _subtitles.length)
+            .toSet()
+            .toList()
+          ..sort();
+    final keepCurrent =
+        preserveCurrent &&
         _playerMode == PlayerMode.testing &&
         _repeatLyricIndex != null &&
         valid.contains(_repeatLyricIndex);
@@ -475,6 +502,7 @@ class PlaybackManager extends ChangeNotifier {
 
   /// Sets the lyric repeat mode directly (used by the dropdown).
   void setRepeatMode(LyricRepeatMode mode) {
+    _cancelTalkingPause();
     int? index = _subtitles.isEmpty
         ? null
         : (_repeatLyricIndex ??
@@ -513,9 +541,13 @@ class PlaybackManager extends ChangeNotifier {
   }
 
   void toggleShowLyric() {
-    if (_playerMode != PlayerMode.listening) return;
+    if (_playerMode != PlayerMode.listening &&
+        _playerMode != PlayerMode.talking) {
+      return;
+    }
     _showLyric = !_showLyric;
     notifyListeners();
+    onShowLyricChanged?.call();
   }
 
   void toggleShowSubtitleTrack() {
@@ -540,8 +572,7 @@ class PlaybackManager extends ChangeNotifier {
   void _syncDesktopLyric() {
     if (!Platform.isWindows) return;
     String? text;
-    if (_showDesktopLyric && _hasMedia &&
-        _playerMode == PlayerMode.listening) {
+    if (_showDesktopLyric && _hasMedia && _playerMode == PlayerMode.listening) {
       for (final entry in _subtitles.reversed) {
         text = entry.textAt(_position);
         if (text != null) break;
@@ -549,15 +580,17 @@ class PlaybackManager extends ChangeNotifier {
     }
     if (text == _desktopLyricText) return;
     _desktopLyricText = text;
-    _desktopLyricQueue = _desktopLyricQueue.then((_) async {
-      if (text == null) {
-        await _desktopLyricChannel.invokeMethod<void>('hide');
-      } else {
-        await _desktopLyricChannel.invokeMethod<void>('show', text);
-      }
-    }).catchError((Object error) {
-      debugPrint('Could not update desktop lyric: $error');
-    });
+    _desktopLyricQueue = _desktopLyricQueue
+        .then((_) async {
+          if (text == null) {
+            await _desktopLyricChannel.invokeMethod<void>('hide');
+          } else {
+            await _desktopLyricChannel.invokeMethod<void>('show', text);
+          }
+        })
+        .catchError((Object error) {
+          debugPrint('Could not update desktop lyric: $error');
+        });
   }
 
   void _applySubtitleTrackVisibility() {
@@ -594,8 +627,8 @@ class PlaybackManager extends ChangeNotifier {
     final end = _playerMode == PlayerMode.testing
         ? entry.end
         : index + 1 < _subtitles.length
-            ? _subtitles[index + 1].start
-            : entry.end;
+        ? _subtitles[index + 1].start
+        : entry.end;
     _loopStart = entry.start;
     _loopEnd = end > entry.start ? end : null;
   }
@@ -618,7 +651,10 @@ class PlaybackManager extends ChangeNotifier {
     }
   }
 
-  Future<void> _seekAutomatically(Duration target, {bool resume = false}) async {
+  Future<void> _seekAutomatically(
+    Duration target, {
+    bool resume = false,
+  }) async {
     if (!_hasMedia || _automaticSeekTarget != null) return;
     final revision = ++_seekRevision;
     _automaticSeekTarget = target;
@@ -656,6 +692,7 @@ class PlaybackManager extends ChangeNotifier {
   /// while seeking to a keyframe, which must not reset the repeat count.
   void _maybeAdvanceLyric() {
     if (_subtitles.isEmpty) return;
+    if (_talkingPauseTimer != null) return;
     if (!_isPlaying) return;
     final subs = _subtitles;
 
@@ -699,11 +736,15 @@ class PlaybackManager extends ChangeNotifier {
         _currentLyricRepeatCount = 0;
       }
 
-      final nextIdx = _playerMode == PlayerMode.testing &&
-              _testingLyricIndices.isNotEmpty
+      final nextIdx =
+          _playerMode == PlayerMode.testing && _testingLyricIndices.isNotEmpty
           ? _testingIndexAtOrAfter(idx + 1)
           : (idx + 1) % subs.length;
       final next = subs[nextIdx];
+      if (_playerMode == PlayerMode.talking) {
+        _startTalkingPause(nextIdx, current);
+        return;
+      }
       _setLoopForIndex(nextIdx);
       _repeatLyricIndex = nextIdx;
       _seekAutomatically(next.start, resume: _playerMode == PlayerMode.testing);
@@ -712,7 +753,40 @@ class PlaybackManager extends ChangeNotifier {
     }
   }
 
+  void _startTalkingPause(int nextIndex, SubtitleEntry current) {
+    if (_talkingPauseTimer != null) return;
+    _talkingNextIndex = nextIndex;
+    unawaited(player.pause());
+    _talkingPauseTimer = Timer(
+      talkingPauseDuration(current.end - current.start),
+      _finishTalkingPause,
+    );
+    notifyListeners();
+  }
+
+  void _finishTalkingPause() {
+    final nextIndex = _talkingNextIndex;
+    _cancelTalkingPause();
+    if (!_hasMedia ||
+        _playerMode != PlayerMode.talking ||
+        nextIndex == null ||
+        nextIndex < 0 ||
+        nextIndex >= _subtitles.length) {
+      return;
+    }
+    _setLoopForIndex(nextIndex);
+    _repeatLyricIndex = nextIndex;
+    _seekAutomatically(_subtitles[nextIndex].start, resume: true);
+  }
+
+  void _cancelTalkingPause() {
+    _talkingPauseTimer?.cancel();
+    _talkingPauseTimer = null;
+    _talkingNextIndex = null;
+  }
+
   void stop() {
+    _cancelTalkingPause();
     _hasMedia = false;
     _position = Duration.zero;
     _duration = Duration.zero;
@@ -740,6 +814,7 @@ class PlaybackManager extends ChangeNotifier {
 
   @override
   void dispose() {
+    _cancelTalkingPause();
     _positionSub?.cancel();
     _durationSub?.cancel();
     _playingSub?.cancel();

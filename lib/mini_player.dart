@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:record/record.dart';
 
+import 'media_library_store.dart';
 import 'playback_manager.dart';
 
 /// Returns the appropriate icon for a given repeat mode.
@@ -288,7 +289,7 @@ class _VolumeSlider extends StatelessWidget {
           ),
           const SizedBox(width: 6),
           SizedBox(
-            width: 54,
+            width: 110,
             child: SliderTheme(
               data: SliderThemeData(
                 trackHeight: 3,
@@ -349,11 +350,27 @@ class _VoiceRecorderState extends State<_VoiceRecorder>
       setState(() => _isRecording = false);
     } else {
       if (!await _recorder.hasPermission()) return;
+      final settings = await MediaLibraryStore.read();
+      InputDevice? selectedDevice;
+      if (settings.recordingDeviceId.isNotEmpty) {
+        try {
+          final devices = await _recorder.listInputDevices();
+          for (final device in devices) {
+            if (device.id == settings.recordingDeviceId) {
+              selectedDevice = device;
+              break;
+            }
+          }
+        } catch (_) {
+          // Fall back to the system default if the saved source was removed.
+        }
+      }
       await _recorder.start(
-        const RecordConfig(
+        RecordConfig(
           encoder: AudioEncoder.aacLc,
           sampleRate: 44100,
           bitRate: 128000,
+          device: selectedDevice,
         ),
         path: '${DateTime.now().millisecondsSinceEpoch}.m4a',
       );
@@ -699,7 +716,7 @@ class MiniPlayerBar extends StatelessWidget {
               child: LayoutBuilder(
                 builder: (context, constraints) {
                   // Leave room for the transport buttons and mode selector.
-                  final rulerWidth = (constraints.maxWidth - 830).clamp(
+                  final rulerWidth = (constraints.maxWidth - 886).clamp(
                     80.0,
                     1400.0,
                   );
@@ -831,10 +848,14 @@ class MiniPlayerBar extends StatelessWidget {
                             ? Icons.visibility_rounded
                             : Icons.visibility_off_rounded,
                         onPressed:
-                            hasMedia && pm.playerMode == PlayerMode.listening
+                            hasMedia &&
+                                (pm.playerMode == PlayerMode.listening ||
+                                    pm.playerMode == PlayerMode.talking)
                             ? () => pm.toggleShowLyric()
                             : null,
-                        tooltip: pm.playerMode != PlayerMode.listening
+                        tooltip:
+                            pm.playerMode != PlayerMode.listening &&
+                                pm.playerMode != PlayerMode.talking
                             ? 'Lyrics unavailable in this model'
                             : pm.showLyric
                             ? 'Show lyric on (L) — click to turn off'
@@ -870,7 +891,8 @@ class MiniPlayerBar extends StatelessWidget {
                         onPressed:
                             hasMedia &&
                                 pm.hasSubtitles &&
-                                pm.playerMode != PlayerMode.listening
+                                (pm.playerMode == PlayerMode.marking ||
+                                    pm.playerMode == PlayerMode.testing)
                             ? onChangeLastLyricMark
                             : null,
                         tooltip: pm.playerMode == PlayerMode.testing
@@ -881,7 +903,9 @@ class MiniPlayerBar extends StatelessWidget {
                       _MiniBtn(
                         icon: Icons.bookmarks_outlined,
                         onPressed:
-                            hasMedia && pm.playerMode != PlayerMode.listening
+                            hasMedia &&
+                                (pm.playerMode == PlayerMode.marking ||
+                                    pm.playerMode == PlayerMode.testing)
                             ? onShowMarkedLyrics
                             : null,
                         tooltip: 'Show marked lyrics',
@@ -933,14 +957,14 @@ class MiniPlayerBar extends StatelessWidget {
                       // ── Volume slider ────────────────────────────────────────────
                       if (hasMedia)
                         SizedBox(
-                          width: 100,
+                          width: 156,
                           child: _VolumeSlider(
                             volume: vol,
                             onChanged: (v) => pm.setVolume(v),
                           ),
                         )
                       else
-                        const SizedBox(width: 100),
+                        const SizedBox(width: 156),
                     ],
                   );
                 },

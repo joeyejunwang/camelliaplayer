@@ -4,6 +4,7 @@ import 'package:desktop_drop/desktop_drop.dart';
 import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart';
 import 'package:path/path.dart' as p;
+import 'package:record/record.dart';
 
 import 'app_colors.dart';
 import 'custom_title_bar.dart';
@@ -101,7 +102,7 @@ class _LibraryHomeScreenState extends State<LibraryHomeScreen> {
       scans[folder] = await _scan(folder);
     }
     if (!mounted || revision != _loadRevision) return;
-    final clean = MediaLibrary(folderPaths: folders, filePaths: files);
+    final clean = stored.copyWith(folderPaths: folders, filePaths: files);
     setState(() {
       _library = clean;
       _folderFiles = scans;
@@ -148,10 +149,7 @@ class _LibraryHomeScreenState extends State<LibraryHomeScreen> {
       return;
     }
     await MediaLibraryStore.write(
-      MediaLibrary(
-        folderPaths: [..._library.folderPaths, folder],
-        filePaths: _library.filePaths,
-      ),
+      _library.copyWith(folderPaths: [..._library.folderPaths, folder]),
     );
     if (mounted) await _loadLibrary();
   }
@@ -171,20 +169,16 @@ class _LibraryHomeScreenState extends State<LibraryHomeScreen> {
       return;
     }
     await _save(
-      MediaLibrary(
-        folderPaths: _library.folderPaths,
-        filePaths: [..._library.filePaths, ...added],
-      ),
+      _library.copyWith(filePaths: [..._library.filePaths, ...added]),
     );
     _toast('${added.length} item${added.length == 1 ? '' : 's'} added.');
   }
 
   Future<void> _removeFolder(String path) async {
-    final value = MediaLibrary(
+    final value = _library.copyWith(
       folderPaths: _library.folderPaths
           .where((item) => _key(item) != _key(path))
           .toList(),
-      filePaths: _library.filePaths,
     );
     await MediaLibraryStore.write(value);
     if (!mounted) return;
@@ -195,8 +189,7 @@ class _LibraryHomeScreenState extends State<LibraryHomeScreen> {
   }
 
   Future<void> _removeFile(String path) => _save(
-    MediaLibrary(
-      folderPaths: _library.folderPaths,
+    _library.copyWith(
       filePaths: _library.filePaths
           .where((item) => _key(item) != _key(path))
           .toList(),
@@ -357,15 +350,16 @@ class _LibraryHomeScreenState extends State<LibraryHomeScreen> {
                 children: [
                   const Positioned.fill(child: _Background()),
                   Padding(
-                    padding: const EdgeInsets.fromLTRB(36, 28, 36, 0),
+                    padding: const EdgeInsets.fromLTRB(24, 18, 24, 0),
                     child: Column(
                       children: [
                         _Header(
                           count: _allFiles.length,
                           onAddFolder: _addFolder,
                           onAddVideo: _addVideo,
+                          onSettings: _showSettings,
                         ),
-                        const SizedBox(height: 24),
+                        const SizedBox(height: 16),
                         _Toolbar(
                           controller: _searchController,
                           sort: _sort,
@@ -373,7 +367,7 @@ class _LibraryHomeScreenState extends State<LibraryHomeScreen> {
                           onSort: (value) => setState(() => _sort = value),
                           onView: (value) => setState(() => _gridView = value),
                         ),
-                        const SizedBox(height: 24),
+                        const SizedBox(height: 16),
                         Expanded(
                           child: _loading
                               ? const Center(child: CircularProgressIndicator())
@@ -408,6 +402,37 @@ class _LibraryHomeScreenState extends State<LibraryHomeScreen> {
       ),
     );
   }
+
+  Future<void> _showSettings() async {
+    await showDialog<void>(
+      context: context,
+      builder: (_) => _LibrarySettingsDialog(
+        initialGridView: _gridView,
+        initialSort: _sort,
+        initialConfig: _library,
+        onViewChanged: (value) => setState(() => _gridView = value),
+        onSortChanged: (value) => setState(() => _sort = value),
+        onSaveRecorder:
+            ({
+              required deviceId,
+              required deviceLabel,
+              required appId,
+              required apiKey,
+              required apiSecret,
+            }) async {
+              await _save(
+                _library.copyWith(
+                  recordingDeviceId: deviceId,
+                  recordingDeviceLabel: deviceLabel,
+                  iseAppId: appId,
+                  iseApiKey: apiKey,
+                  iseApiSecret: apiSecret,
+                ),
+              );
+            },
+      ),
+    );
+  }
 }
 
 class _Background extends StatelessWidget {
@@ -429,55 +454,44 @@ class _Header extends StatelessWidget {
     required this.count,
     required this.onAddFolder,
     required this.onAddVideo,
+    required this.onSettings,
   });
   final int count;
   final VoidCallback onAddFolder;
   final VoidCallback onAddVideo;
+  final VoidCallback onSettings;
 
   @override
   Widget build(BuildContext context) {
     final copy = Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              width: 58,
-              height: 42,
-              decoration: BoxDecoration(
-                border: Border.all(color: Colors.white, width: 3),
-                borderRadius: BorderRadius.circular(11),
-              ),
-              child: const Icon(Icons.play_arrow_rounded, size: 32),
-            ),
-            const SizedBox(width: 17),
-            Text(
-              'ALL VIDEOS',
-              style: Theme.of(context).textTheme.displaySmall?.copyWith(
-                color: Colors.white,
-                fontWeight: FontWeight.w900,
-                letterSpacing: -1.3,
-              ),
-            ),
-          ],
+        const Text(
+          'ALL VIDEOS',
+          style: TextStyle(
+            color: Colors.white,
+            fontSize: 29,
+            fontWeight: FontWeight.w900,
+            letterSpacing: -0.8,
+            height: 1,
+          ),
         ),
-        const SizedBox(height: 3),
+        const SizedBox(height: 5),
         Text(
           count == 0
               ? 'Add videos or video folders, then play anything in your library.'
               : '$count media item${count == 1 ? '' : 's'} ready to play.',
           style: const TextStyle(
             color: Color(0xFFD8C4CE),
-            fontSize: 15,
+            fontSize: 13,
             fontStyle: FontStyle.italic,
           ),
         ),
       ],
     );
     final actions = Wrap(
-      spacing: 12,
-      runSpacing: 8,
+      spacing: 9,
+      runSpacing: 7,
       children: [
         OutlinedButton.icon(
           onPressed: onAddFolder,
@@ -491,13 +505,27 @@ class _Header extends StatelessWidget {
           label: const Text('Add Video'),
           style: _buttonStyle(true),
         ),
+        IconButton(
+          onPressed: onSettings,
+          tooltip: 'Settings',
+          icon: const Icon(Icons.settings_rounded, size: 19),
+          style: IconButton.styleFrom(
+            fixedSize: const Size(40, 40),
+            backgroundColor: const Color(0xFF542438),
+            foregroundColor: Colors.white,
+            side: const BorderSide(color: Color(0xFFE75889)),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(14),
+            ),
+          ),
+        ),
       ],
     );
     return LayoutBuilder(
       builder: (context, size) => size.maxWidth < 820
           ? Column(
               crossAxisAlignment: CrossAxisAlignment.start,
-              children: [copy, const SizedBox(height: 16), actions],
+              children: [copy, const SizedBox(height: 12), actions],
             )
           : Row(
               children: [
@@ -509,17 +537,331 @@ class _Header extends StatelessWidget {
   }
 
   ButtonStyle _buttonStyle(bool filled) => ButtonStyle(
-    minimumSize: const WidgetStatePropertyAll(Size(0, 48)),
-    padding: const WidgetStatePropertyAll(EdgeInsets.symmetric(horizontal: 22)),
+    minimumSize: const WidgetStatePropertyAll(Size(0, 40)),
+    padding: const WidgetStatePropertyAll(EdgeInsets.symmetric(horizontal: 16)),
+    textStyle: const WidgetStatePropertyAll(TextStyle(fontSize: 13)),
     backgroundColor: WidgetStatePropertyAll(
       filled ? AppColors.camellia : const Color(0xFF542438),
     ),
     foregroundColor: const WidgetStatePropertyAll(Colors.white),
     side: const WidgetStatePropertyAll(BorderSide(color: Color(0xFFE75889))),
     shape: WidgetStatePropertyAll(
-      RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+      RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
     ),
   );
+}
+
+class _LibrarySettingsDialog extends StatefulWidget {
+  const _LibrarySettingsDialog({
+    required this.initialGridView,
+    required this.initialSort,
+    required this.initialConfig,
+    required this.onViewChanged,
+    required this.onSortChanged,
+    required this.onSaveRecorder,
+  });
+
+  final bool initialGridView;
+  final _LibrarySort initialSort;
+  final MediaLibrary initialConfig;
+  final ValueChanged<bool> onViewChanged;
+  final ValueChanged<_LibrarySort> onSortChanged;
+  final Future<void> Function({
+    required String deviceId,
+    required String deviceLabel,
+    required String appId,
+    required String apiKey,
+    required String apiSecret,
+  })
+  onSaveRecorder;
+
+  @override
+  State<_LibrarySettingsDialog> createState() => _LibrarySettingsDialogState();
+}
+
+class _LibrarySettingsDialogState extends State<_LibrarySettingsDialog> {
+  final _formKey = GlobalKey<FormState>();
+  final _deviceProbe = AudioRecorder();
+  late bool _gridView;
+  late _LibrarySort _sort;
+  late String _deviceId;
+  late final TextEditingController _appIdController;
+  late final TextEditingController _apiKeyController;
+  late final TextEditingController _apiSecretController;
+  List<InputDevice> _devices = const [];
+  bool _loadingDevices = true;
+  bool _saving = false;
+  bool _showApiKey = false;
+  bool _showApiSecret = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _gridView = widget.initialGridView;
+    _sort = widget.initialSort;
+    _deviceId = widget.initialConfig.recordingDeviceId;
+    _appIdController = TextEditingController(
+      text: widget.initialConfig.iseAppId,
+    );
+    _apiKeyController = TextEditingController(
+      text: widget.initialConfig.iseApiKey,
+    );
+    _apiSecretController = TextEditingController(
+      text: widget.initialConfig.iseApiSecret,
+    );
+    _loadInputDevices();
+  }
+
+  @override
+  void dispose() {
+    _deviceProbe.dispose();
+    _appIdController.dispose();
+    _apiKeyController.dispose();
+    _apiSecretController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _loadInputDevices() async {
+    try {
+      final devices = await _deviceProbe.listInputDevices();
+      if (!mounted) return;
+      setState(() {
+        _devices = devices;
+        _loadingDevices = false;
+      });
+    } catch (_) {
+      if (mounted) setState(() => _loadingDevices = false);
+    }
+  }
+
+  Future<void> _saveRecorderSettings() async {
+    if (!(_formKey.currentState?.validate() ?? false)) return;
+    setState(() => _saving = true);
+    final selected = _devices.where((device) => device.id == _deviceId);
+    await widget.onSaveRecorder(
+      deviceId: _deviceId,
+      deviceLabel: selected.isEmpty ? '' : selected.first.label,
+      appId: _appIdController.text.trim(),
+      apiKey: _apiKeyController.text.trim(),
+      apiSecret: _apiSecretController.text.trim(),
+    );
+    if (!mounted) return;
+    setState(() => _saving = false);
+    Navigator.of(context).pop();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final selectedDeviceExists = _devices.any(
+      (device) => device.id == _deviceId,
+    );
+    final dropdownDeviceId = selectedDeviceExists ? _deviceId : '';
+    return AlertDialog(
+      title: const Row(
+        children: [
+          Icon(Icons.settings_rounded, size: 22),
+          SizedBox(width: 10),
+          Text('Settings'),
+        ],
+      ),
+      content: SizedBox(
+        width: 430,
+        child: Form(
+          key: _formKey,
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Library', style: Theme.of(context).textTheme.titleSmall),
+                const SizedBox(height: 12),
+                SizedBox(
+                  width: double.infinity,
+                  child: SegmentedButton<bool>(
+                    segments: const [
+                      ButtonSegment(
+                        value: true,
+                        icon: Icon(Icons.grid_view_rounded),
+                        label: Text('Grid'),
+                      ),
+                      ButtonSegment(
+                        value: false,
+                        icon: Icon(Icons.view_list_rounded),
+                        label: Text('List'),
+                      ),
+                    ],
+                    selected: {_gridView},
+                    onSelectionChanged: (selection) {
+                      final value = selection.first;
+                      setState(() => _gridView = value);
+                      widget.onViewChanged(value);
+                    },
+                  ),
+                ),
+                const SizedBox(height: 12),
+                DropdownButtonFormField<_LibrarySort>(
+                  initialValue: _sort,
+                  decoration: const InputDecoration(
+                    labelText: 'Sort order',
+                    border: OutlineInputBorder(),
+                    isDense: true,
+                  ),
+                  items: const [
+                    DropdownMenuItem(
+                      value: _LibrarySort.nameAscending,
+                      child: Text('Name (A–Z)'),
+                    ),
+                    DropdownMenuItem(
+                      value: _LibrarySort.nameDescending,
+                      child: Text('Name (Z–A)'),
+                    ),
+                    DropdownMenuItem(
+                      value: _LibrarySort.newest,
+                      child: Text('Newest first'),
+                    ),
+                  ],
+                  onChanged: (value) {
+                    if (value == null) return;
+                    setState(() => _sort = value);
+                    widget.onSortChanged(value);
+                  },
+                ),
+                const SizedBox(height: 24),
+                Text(
+                  'Voice recording',
+                  style: Theme.of(context).textTheme.titleSmall,
+                ),
+                const SizedBox(height: 12),
+                DropdownButtonFormField<String>(
+                  key: ValueKey('${_devices.length}:$dropdownDeviceId'),
+                  initialValue: dropdownDeviceId,
+                  isExpanded: true,
+                  decoration: InputDecoration(
+                    labelText: 'Recording source',
+                    border: const OutlineInputBorder(),
+                    isDense: true,
+                    suffixIcon: _loadingDevices
+                        ? const Padding(
+                            padding: EdgeInsets.all(12),
+                            child: SizedBox.square(
+                              dimension: 16,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            ),
+                          )
+                        : IconButton(
+                            tooltip: 'Refresh recording sources',
+                            onPressed: () {
+                              setState(() => _loadingDevices = true);
+                              _loadInputDevices();
+                            },
+                            icon: const Icon(Icons.refresh_rounded),
+                          ),
+                  ),
+                  items: [
+                    const DropdownMenuItem(
+                      value: '',
+                      child: Text('System default'),
+                    ),
+                    for (final device in _devices)
+                      DropdownMenuItem(
+                        value: device.id,
+                        child: Text(
+                          device.label.isEmpty ? device.id : device.label,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                  ],
+                  onChanged: (value) => setState(() => _deviceId = value ?? ''),
+                ),
+                const SizedBox(height: 24),
+                Text(
+                  'ISE credentials',
+                  style: Theme.of(context).textTheme.titleSmall,
+                ),
+                const SizedBox(height: 5),
+                Text(
+                  'Values use ISE_APP_ID, ISE_API_KEY, and ISE_API_SECRET when the saved fields are empty.',
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
+                const SizedBox(height: 12),
+                TextFormField(
+                  controller: _appIdController,
+                  decoration: const InputDecoration(
+                    labelText: 'APPID',
+                    border: OutlineInputBorder(),
+                    isDense: true,
+                  ),
+                  validator: _requiredValue,
+                ),
+                const SizedBox(height: 12),
+                TextFormField(
+                  controller: _apiKeyController,
+                  obscureText: !_showApiKey,
+                  decoration: InputDecoration(
+                    labelText: 'APIKey',
+                    border: const OutlineInputBorder(),
+                    isDense: true,
+                    suffixIcon: IconButton(
+                      tooltip: _showApiKey ? 'Hide APIKey' : 'Show APIKey',
+                      onPressed: () =>
+                          setState(() => _showApiKey = !_showApiKey),
+                      icon: Icon(
+                        _showApiKey
+                            ? Icons.visibility_off_rounded
+                            : Icons.visibility_rounded,
+                      ),
+                    ),
+                  ),
+                  validator: _requiredValue,
+                ),
+                const SizedBox(height: 12),
+                TextFormField(
+                  controller: _apiSecretController,
+                  obscureText: !_showApiSecret,
+                  decoration: InputDecoration(
+                    labelText: 'APISecret',
+                    border: const OutlineInputBorder(),
+                    isDense: true,
+                    suffixIcon: IconButton(
+                      tooltip: _showApiSecret
+                          ? 'Hide APISecret'
+                          : 'Show APISecret',
+                      onPressed: () =>
+                          setState(() => _showApiSecret = !_showApiSecret),
+                      icon: Icon(
+                        _showApiSecret
+                            ? Icons.visibility_off_rounded
+                            : Icons.visibility_rounded,
+                      ),
+                    ),
+                  ),
+                  validator: _requiredValue,
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: _saving ? null : () => Navigator.of(context).pop(),
+          child: const Text('Cancel'),
+        ),
+        FilledButton(
+          onPressed: _saving ? null : _saveRecorderSettings,
+          child: _saving
+              ? const SizedBox.square(
+                  dimension: 16,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              : const Text('Save'),
+        ),
+      ],
+    );
+  }
+
+  String? _requiredValue(String? value) =>
+      value == null || value.trim().isEmpty ? 'This value is required.' : null;
 }
 
 class _Toolbar extends StatelessWidget {
@@ -546,7 +888,9 @@ class _Toolbar extends StatelessWidget {
       controller: controller,
       decoration: InputDecoration(
         hintText: 'Search videos and folders...',
+        hintStyle: const TextStyle(fontSize: 13),
         prefixIcon: const Icon(Icons.search_rounded),
+        prefixIconConstraints: const BoxConstraints(minWidth: 40),
         suffixIcon: controller.text.isEmpty
             ? null
             : IconButton(
@@ -554,6 +898,9 @@ class _Toolbar extends StatelessWidget {
                 icon: const Icon(Icons.close_rounded),
               ),
         filled: true,
+        isDense: true,
+        contentPadding: const EdgeInsets.symmetric(vertical: 10),
+        constraints: const BoxConstraints(minHeight: 40, maxHeight: 40),
         fillColor: const Color(0xFF3A202C),
         enabledBorder: border,
         focusedBorder: border,
@@ -595,7 +942,7 @@ class _Toolbar extends StatelessWidget {
             ),
           ),
         ),
-        const SizedBox(width: 12),
+        const SizedBox(width: 9),
         _ControlBox(
           padding: EdgeInsets.zero,
           child: Row(
@@ -624,7 +971,7 @@ class _Toolbar extends StatelessWidget {
           : Row(
               children: [
                 Expanded(child: search),
-                const SizedBox(width: 20),
+                const SizedBox(width: 14),
                 controls,
               ],
             ),
@@ -638,11 +985,11 @@ class _ControlBox extends StatelessWidget {
   final EdgeInsets? padding;
   @override
   Widget build(BuildContext context) => Container(
-    height: 48,
-    padding: padding ?? const EdgeInsets.symmetric(horizontal: 16),
+    height: 40,
+    padding: padding ?? const EdgeInsets.symmetric(horizontal: 12),
     decoration: BoxDecoration(
       color: const Color(0xFF3A202C),
-      borderRadius: BorderRadius.circular(16),
+      borderRadius: BorderRadius.circular(13),
       border: Border.all(color: const Color(0xFFD64D7D)),
     ),
     child: child,
@@ -664,11 +1011,11 @@ class _ViewButton extends StatelessWidget {
     borderRadius: BorderRadius.circular(14),
     child: AnimatedContainer(
       duration: const Duration(milliseconds: 160),
-      width: 50,
-      height: 44,
+      width: 42,
+      height: 36,
       decoration: BoxDecoration(
         color: selected ? AppColors.camellia : Colors.transparent,
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(11),
       ),
       child: Icon(icon),
     ),
@@ -734,17 +1081,17 @@ class _LibraryItems extends StatelessWidget {
       return ListView.separated(
         padding: const EdgeInsets.only(bottom: 30),
         itemCount: count,
-        itemBuilder: (_, index) => SizedBox(height: 92, child: item(index)),
-        separatorBuilder: (_, _) => const SizedBox(height: 10),
+        itemBuilder: (_, index) => SizedBox(height: 72, child: item(index)),
+        separatorBuilder: (_, _) => const SizedBox(height: 8),
       );
     }
     return LayoutBuilder(
       builder: (context, size) {
-        final columns = size.maxWidth >= 1400
+        final columns = size.maxWidth >= 1080
             ? 4
-            : size.maxWidth >= 960
+            : size.maxWidth >= 780
             ? 3
-            : size.maxWidth >= 620
+            : size.maxWidth >= 520
             ? 2
             : 1;
         return GridView.builder(
@@ -752,9 +1099,9 @@ class _LibraryItems extends StatelessWidget {
           itemCount: count,
           gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
             crossAxisCount: columns,
-            mainAxisSpacing: 16,
-            crossAxisSpacing: 16,
-            childAspectRatio: 1.85,
+            mainAxisSpacing: 12,
+            crossAxisSpacing: 12,
+            childAspectRatio: 2.1,
           ),
           itemBuilder: (_, index) => item(index),
         );
@@ -782,11 +1129,11 @@ class _FolderCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) => _CardFrame(
     child: Padding(
-      padding: EdgeInsets.symmetric(horizontal: 22, vertical: grid ? 18 : 8),
+      padding: EdgeInsets.symmetric(horizontal: 15, vertical: grid ? 12 : 6),
       child: Row(
         children: [
-          const Icon(Icons.folder_rounded, size: 62, color: Color(0xFFFF5D91)),
-          const SizedBox(width: 18),
+          const Icon(Icons.folder_rounded, size: 44, color: Color(0xFFFF5D91)),
+          const SizedBox(width: 12),
           Expanded(
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
@@ -797,17 +1144,22 @@ class _FolderCard extends StatelessWidget {
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
-                    fontSize: 19,
+                    fontSize: 15,
                     fontWeight: FontWeight.w600,
                   ),
                 ),
-                const SizedBox(height: 5),
-                Text('$count media item${count == 1 ? '' : 's'}'),
+                const SizedBox(height: 3),
+                Text(
+                  '$count media item${count == 1 ? '' : 's'}',
+                  style: const TextStyle(fontSize: 12),
+                ),
               ],
             ),
           ),
           PopupMenuButton<String>(
             tooltip: 'Folder options',
+            padding: EdgeInsets.zero,
+            iconSize: 20,
             onSelected: (_) => onRemove(),
             itemBuilder: (_) => const [
               PopupMenuItem(
@@ -839,7 +1191,7 @@ class _MediaCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final info = Padding(
-      padding: const EdgeInsets.fromLTRB(15, 7, 8, 7),
+      padding: const EdgeInsets.fromLTRB(11, 5, 5, 5),
       child: Row(
         children: [
           Expanded(
@@ -852,7 +1204,7 @@ class _MediaCard extends StatelessWidget {
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
-                    fontSize: 16,
+                    fontSize: 13,
                     fontWeight: FontWeight.w600,
                   ),
                 ),
@@ -862,7 +1214,7 @@ class _MediaCard extends StatelessWidget {
                       ? p.extension(path).replaceFirst('.', '').toUpperCase()
                       : 'Resume at lyric ${resumeIndex! + 1}',
                   style: TextStyle(
-                    fontSize: 12,
+                    fontSize: 10,
                     color: resumeIndex == null
                         ? const Color(0xFFD9C4CD)
                         : const Color(0xFFFF5D91),
@@ -873,6 +1225,8 @@ class _MediaCard extends StatelessWidget {
           ),
           PopupMenuButton<String>(
             tooltip: 'Video options',
+            padding: EdgeInsets.zero,
+            iconSize: 20,
             onSelected: (value) {
               if (value == 'play') onPlay();
               if (value == 'remove') onRemove?.call();
@@ -967,7 +1321,7 @@ class _Thumbnail extends StatelessWidget {
               audio
                   ? Icons.graphic_eq_rounded
                   : Icons.play_circle_outline_rounded,
-              size: 58,
+              size: 40,
               color: Colors.white.withValues(alpha: 0.88),
             ),
           ),

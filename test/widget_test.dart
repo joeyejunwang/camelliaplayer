@@ -1,3 +1,4 @@
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:flutter_video_player/main.dart';
@@ -14,5 +15,14 @@ void main() {
     expect(find.text('Add Video Folder'), findsOneWidget);
     expect(find.text('Add Video'), findsWidgets);
     expect(find.text('Search videos and folders...'), findsOneWidget);
+    expect(find.byIcon(Icons.settings_rounded), findsOneWidget);
+
+    await tester.tap(find.byTooltip('Settings'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(find.text('Recording source'), findsOneWidget);
+    expect(find.text('APPID'), findsOneWidget);
+    expect(find.text('APIKey'), findsOneWidget);
+    expect(find.text('APISecret'), findsOneWidget);
   });
 }

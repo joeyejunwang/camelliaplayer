@@ -5,21 +5,82 @@ import 'package:path_provider/path_provider.dart';
 
 /// The folders and individual media files shown on the desktop home screen.
 class MediaLibrary {
-  const MediaLibrary({this.folderPaths = const [], this.filePaths = const []});
+  const MediaLibrary({
+    this.folderPaths = const [],
+    this.filePaths = const [],
+    this.recordingDeviceId = '',
+    this.recordingDeviceLabel = '',
+    this.iseAppId = '',
+    this.iseApiKey = '',
+    this.iseApiSecret = '',
+  });
 
   final List<String> folderPaths;
   final List<String> filePaths;
+  final String recordingDeviceId;
+  final String recordingDeviceLabel;
+  final String iseAppId;
+  final String iseApiKey;
+  final String iseApiSecret;
 
-  Map<String, dynamic> toJson() => {'folders': folderPaths, 'files': filePaths};
+  Map<String, dynamic> toJson() => {
+    'folders': folderPaths,
+    'files': filePaths,
+    'recording_device': {
+      'id': recordingDeviceId,
+      'label': recordingDeviceLabel,
+    },
+    'ise_app_id': iseAppId,
+    'ise_api_key': iseApiKey,
+    'ise_api_secret': iseApiSecret,
+  };
 
-  factory MediaLibrary.fromJson(Map<String, dynamic> json) => MediaLibrary(
-    folderPaths: _stringList(json['folders']),
-    filePaths: _stringList(json['files']),
+  factory MediaLibrary.fromJson(Map<String, dynamic> json) {
+    final device = json['recording_device'];
+    return MediaLibrary(
+      folderPaths: _stringList(json['folders']),
+      filePaths: _stringList(json['files']),
+      recordingDeviceId: device is Map ? _string(device['id']) : '',
+      recordingDeviceLabel: device is Map ? _string(device['label']) : '',
+      iseAppId: _setting(json, 'ise_app_id', 'ISE_APP_ID'),
+      iseApiKey: _setting(json, 'ise_api_key', 'ISE_API_KEY'),
+      iseApiSecret: _setting(json, 'ise_api_secret', 'ISE_API_SECRET'),
+    );
+  }
+
+  MediaLibrary copyWith({
+    List<String>? folderPaths,
+    List<String>? filePaths,
+    String? recordingDeviceId,
+    String? recordingDeviceLabel,
+    String? iseAppId,
+    String? iseApiKey,
+    String? iseApiSecret,
+  }) => MediaLibrary(
+    folderPaths: folderPaths ?? this.folderPaths,
+    filePaths: filePaths ?? this.filePaths,
+    recordingDeviceId: recordingDeviceId ?? this.recordingDeviceId,
+    recordingDeviceLabel: recordingDeviceLabel ?? this.recordingDeviceLabel,
+    iseAppId: iseAppId ?? this.iseAppId,
+    iseApiKey: iseApiKey ?? this.iseApiKey,
+    iseApiSecret: iseApiSecret ?? this.iseApiSecret,
   );
 
   static List<String> _stringList(Object? value) {
     if (value is! List) return const [];
     return value.whereType<String>().toList(growable: false);
+  }
+
+  static String _string(Object? value) => value is String ? value.trim() : '';
+
+  static String _setting(
+    Map<String, dynamic> json,
+    String jsonKey,
+    String environmentKey,
+  ) {
+    final stored = _string(json[jsonKey]);
+    if (stored.isNotEmpty) return stored;
+    return Platform.environment[environmentKey]?.trim() ?? '';
   }
 }
 
