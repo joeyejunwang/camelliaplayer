@@ -1170,10 +1170,12 @@ class _LibraryItems extends StatelessWidget {
     return LayoutBuilder(
       builder: (context, size) {
         final columns = size.maxWidth >= 1080
-            ? 4
+            ? 5
             : size.maxWidth >= 780
-            ? 3
+            ? 4
             : size.maxWidth >= 520
+            ? 3
+            : size.maxWidth >= 340
             ? 2
             : 1;
         return GridView.builder(
@@ -1181,9 +1183,9 @@ class _LibraryItems extends StatelessWidget {
           itemCount: count,
           gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
             crossAxisCount: columns,
-            mainAxisSpacing: 12,
-            crossAxisSpacing: 12,
-            childAspectRatio: 2.1,
+            mainAxisSpacing: 10,
+            crossAxisSpacing: 10,
+            childAspectRatio: 2.18,
           ),
           itemBuilder: (_, index) => item(index),
         );
@@ -1214,11 +1216,11 @@ class _FolderCard extends StatelessWidget {
   Widget build(BuildContext context) => _CardFrame(
     onTap: onOpen,
     child: Padding(
-      padding: EdgeInsets.symmetric(horizontal: 15, vertical: grid ? 12 : 6),
+      padding: EdgeInsets.symmetric(horizontal: 12, vertical: grid ? 8 : 5),
       child: Row(
         children: [
-          const Icon(Icons.folder_rounded, size: 44, color: Color(0xFFFF5D91)),
-          const SizedBox(width: 12),
+          const Icon(Icons.folder_rounded, size: 34, color: Color(0xFFFF5D91)),
+          const SizedBox(width: 9),
           Expanded(
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
@@ -1229,14 +1231,14 @@ class _FolderCard extends StatelessWidget {
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
-                    fontSize: 15,
+                    fontSize: 13,
                     fontWeight: FontWeight.w600,
                   ),
                 ),
-                const SizedBox(height: 3),
+                const SizedBox(height: 2),
                 Text(
                   '$count media item${count == 1 ? '' : 's'}',
-                  style: const TextStyle(fontSize: 12),
+                  style: const TextStyle(fontSize: 10),
                 ),
               ],
             ),
@@ -1244,7 +1246,7 @@ class _FolderCard extends StatelessWidget {
           PopupMenuButton<String>(
             tooltip: 'Folder options',
             padding: EdgeInsets.zero,
-            iconSize: 20,
+            iconSize: 18,
             onSelected: (_) => onRemove(),
             itemBuilder: (_) => const [
               PopupMenuItem(
@@ -1276,7 +1278,7 @@ class _MediaCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final info = Padding(
-      padding: const EdgeInsets.fromLTRB(11, 5, 5, 5),
+      padding: const EdgeInsets.fromLTRB(9, 3, 3, 3),
       child: Row(
         children: [
           Expanded(
@@ -1289,17 +1291,17 @@ class _MediaCard extends StatelessWidget {
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
-                    fontSize: 13,
+                    fontSize: 12,
                     fontWeight: FontWeight.w600,
                   ),
                 ),
-                const SizedBox(height: 2),
+                const SizedBox(height: 1),
                 Text(
                   resumeIndex == null
                       ? p.extension(path).replaceFirst('.', '').toUpperCase()
                       : 'Resume at lyric ${resumeIndex! + 1}',
                   style: TextStyle(
-                    fontSize: 10,
+                    fontSize: 9,
                     color: resumeIndex == null
                         ? Theme.of(context).colorScheme.onSurfaceVariant
                         : const Color(0xFFFF5D91),
@@ -1311,7 +1313,7 @@ class _MediaCard extends StatelessWidget {
           PopupMenuButton<String>(
             tooltip: 'Video options',
             padding: EdgeInsets.zero,
-            iconSize: 20,
+            iconSize: 18,
             onSelected: (value) {
               if (value == 'play') onPlay();
               if (value == 'remove') onRemove?.call();
@@ -1331,7 +1333,7 @@ class _MediaCard extends StatelessWidget {
     return _CardFrame(
       onTap: onPlay,
       child: ClipRRect(
-        borderRadius: BorderRadius.circular(17),
+        borderRadius: BorderRadius.circular(14),
         child: grid
             ? Column(
                 children: [
@@ -1361,7 +1363,7 @@ class _CardFrame extends StatelessWidget {
       color: Colors.transparent,
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(18),
+        borderRadius: BorderRadius.circular(15),
         child: Ink(
           decoration: BoxDecoration(
             gradient: LinearGradient(
@@ -1371,7 +1373,7 @@ class _CardFrame extends StatelessWidget {
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
             ),
-            borderRadius: BorderRadius.circular(18),
+            borderRadius: BorderRadius.circular(15),
             border: Border.all(color: const Color(0xFFD6547E)),
           ),
           child: child,
@@ -1411,7 +1413,7 @@ class _Thumbnail extends StatelessWidget {
               audio
                   ? Icons.graphic_eq_rounded
                   : Icons.play_circle_outline_rounded,
-              size: 40,
+              size: 32,
               color: Colors.white.withValues(alpha: 0.88),
             ),
           ),

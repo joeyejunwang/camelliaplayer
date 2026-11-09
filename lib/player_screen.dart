@@ -877,8 +877,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
                                           SubtitleViewConfiguration(
                                             visible:
                                                 _subtitles.isEmpty &&
-                                                pm.showSubtitleTrack &&
-                                                !pm.isTalkingRecording,
+                                                pm.showSubtitleTrack,
                                             style: TextStyle(
                                               height: 1.4,
                                               fontSize: 32,
@@ -892,7 +891,9 @@ class _PlayerScreenState extends State<PlayerScreen> {
                                               16,
                                               pm.playerMode ==
                                                       PlayerMode.talking
-                                                  ? 6
+                                                  ? pm.isTalkingRecording
+                                                        ? 72
+                                                        : 6
                                                   : 24,
                                             ),
                                           ),
@@ -906,13 +907,14 @@ class _PlayerScreenState extends State<PlayerScreen> {
                           // while an automatic repeat seek returns to this one.
                           if (_subtitles.isNotEmpty &&
                               PlaybackManager.instance.showSubtitleTrack &&
-                              !pm.isTalkingRecording &&
                               displaySubtitleIndex != null)
                             AnimatedPositioned(
                               duration: const Duration(milliseconds: 180),
                               curve: Curves.easeOut,
                               bottom: pm.playerMode == PlayerMode.talking
-                                  ? 6
+                                  ? pm.isTalkingRecording
+                                        ? 72
+                                        : 6
                                   : 12,
                               left: 16,
                               right: 16,
