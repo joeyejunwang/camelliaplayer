@@ -676,11 +676,13 @@ class MiniPlayerBar extends StatelessWidget {
     required this.onChangeLastLyricMark,
     required this.onShowMarkedLyrics,
     required this.onPlayerModeChanged,
+    required this.onToggleSubtitleTrack,
   });
 
   final VoidCallback onChangeLastLyricMark;
   final VoidCallback onShowMarkedLyrics;
   final ValueChanged<PlayerMode> onPlayerModeChanged;
+  final VoidCallback onToggleSubtitleTrack;
 
   static const double height = 80;
 
@@ -833,7 +835,7 @@ class MiniPlayerBar extends StatelessWidget {
                             hasMedia &&
                                 (pm.playerMode == PlayerMode.listening ||
                                     pm.playerMode == PlayerMode.talking)
-                            ? () => pm.toggleShowSubtitleTrack()
+                            ? onToggleSubtitleTrack
                             : null,
                         tooltip:
                             pm.playerMode != PlayerMode.listening &&

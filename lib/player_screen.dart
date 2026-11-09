@@ -555,6 +555,11 @@ class _PlayerScreenState extends State<PlayerScreen> {
     }
   }
 
+  void _toggleSubtitleTrack() {
+    PlaybackManager.instance.toggleShowSubtitleTrack();
+    if (mounted) setState(() {});
+  }
+
   Future<void> _showMarkedLyrics() async {
     final pm = PlaybackManager.instance;
     if (!pm.hasMedia ||
@@ -785,7 +790,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
             ? () => pm.setVolume((pm.volume - 0.1).clamp(0.0, 1.0))
             : noop,
         const SingleActivator(LogicalKeyboardKey.keyS): hasMedia
-            ? () => pm.toggleShowSubtitleTrack()
+            ? _toggleSubtitleTrack
             : noop,
       },
       child: Focus(
@@ -834,6 +839,19 @@ class _PlayerScreenState extends State<PlayerScreen> {
                                   : Video(
                                       controller: _videoController,
                                       controls: NoVideoControls,
+                                      subtitleViewConfiguration:
+                                          SubtitleViewConfiguration(
+                                            padding: EdgeInsets.fromLTRB(
+                                              16,
+                                              0,
+                                              16,
+                                              pm.playerMode ==
+                                                          PlayerMode.talking &&
+                                                      pm.showSubtitleTrack
+                                                  ? 112
+                                                  : 24,
+                                            ),
+                                          ),
                                     ),
                             ),
                           ),
@@ -847,8 +865,12 @@ class _PlayerScreenState extends State<PlayerScreen> {
                           if (_isMp3 &&
                               PlaybackManager.instance.showSubtitleTrack &&
                               _currentIndex != null)
-                            Positioned(
-                              bottom: 12,
+                            AnimatedPositioned(
+                              duration: const Duration(milliseconds: 180),
+                              curve: Curves.easeOut,
+                              bottom: pm.playerMode == PlayerMode.talking
+                                  ? 112
+                                  : 12,
                               left: 16,
                               right: 16,
                               child: IgnorePointer(
@@ -880,6 +902,8 @@ class _PlayerScreenState extends State<PlayerScreen> {
                           // Talking practice feedback. Keeping this inside the
                           // video stack anchors it at the requested lower-center
                           // position even when the lyrics panel is shown/hidden.
+                          // The subtitle view moves upward in Talking mode, so
+                          // this remains in the lower position below the lyric.
                           if (pm.playerMode == PlayerMode.talking)
                             const Positioned(
                               left: 0,
@@ -974,6 +998,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
                       unawaited(_changeCurrentLyricMark()),
                   onShowMarkedLyrics: () => unawaited(_showMarkedLyrics()),
                   onPlayerModeChanged: _selectPlayerMode,
+                  onToggleSubtitleTrack: _toggleSubtitleTrack,
                 ),
               ),
             ],
