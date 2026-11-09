@@ -755,6 +755,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
     final bottomPadding = MediaQuery.of(context).padding.bottom;
     final pm = PlaybackManager.instance;
     final hasMedia = pm.hasMedia;
+    final displaySubtitleIndex = pm.displayLyricIndex;
     final theme = Theme.of(context);
     final dark = theme.brightness == Brightness.dark;
     final videoBackdrop = dark
@@ -771,6 +772,11 @@ class _PlayerScreenState extends State<PlayerScreen> {
         ? const Color(0xAA000000)
         : theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.94);
     final subtitleTextColor = dark ? Colors.white : theme.colorScheme.onSurface;
+    final reviewSubtitleColors = dark
+        ? const [Color(0xFFFF5252), Color(0xFF69F0AE), Color(0xFFFFD740)]
+        : const [Color(0xFFC62828), Color(0xFF2E7D32), Color(0xFFF9A825)];
+    final reviewSubtitleColor =
+        reviewSubtitleColors[pm.talkingReviewColorIndex];
 
     void noop() {}
 
@@ -866,6 +872,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
                                       subtitleViewConfiguration:
                                           SubtitleViewConfiguration(
                                             visible:
+                                                _subtitles.isEmpty &&
                                                 pm.showSubtitleTrack &&
                                                 !pm.isTalkingRecording,
                                             style: TextStyle(
@@ -879,13 +886,9 @@ class _PlayerScreenState extends State<PlayerScreen> {
                                               16,
                                               0,
                                               16,
-                                              pm.isTalkingReview
-                                                  ? 16
-                                                  : pm.playerMode ==
-                                                            PlayerMode
-                                                                .talking &&
-                                                        pm.showSubtitleTrack
-                                                  ? 112
+                                              pm.playerMode ==
+                                                      PlayerMode.talking
+                                                  ? 6
                                                   : 24,
                                             ),
                                           ),
@@ -893,23 +896,19 @@ class _PlayerScreenState extends State<PlayerScreen> {
                             ),
                           ),
 
-                          // Centered lyric overlay for audio-only playback
-                          // (.wav / .mp3 / .aac). Shown only while the
-                          // subtitle (S) toggle is on and a lyric cue is
-                          // active at the current playhead position so the
-                          // user gets karaoke-style feedback on top of the
-                          // audio artwork.
-                          if (_isMp3 &&
+                          // Controlled subtitle overlay. It follows the
+                          // manager's repeat index rather than the decoder's
+                          // raw subtitle stream, so the next cue cannot flash
+                          // while an automatic repeat seek returns to this one.
+                          if (_subtitles.isNotEmpty &&
                               PlaybackManager.instance.showSubtitleTrack &&
                               !pm.isTalkingRecording &&
-                              _currentIndex != null)
+                              displaySubtitleIndex != null)
                             AnimatedPositioned(
                               duration: const Duration(milliseconds: 180),
                               curve: Curves.easeOut,
-                              bottom: pm.isTalkingReview
-                                  ? 16
-                                  : pm.playerMode == PlayerMode.talking
-                                  ? 112
+                              bottom: pm.playerMode == PlayerMode.talking
+                                  ? 6
                                   : 12,
                               left: 16,
                               right: 16,
@@ -924,12 +923,14 @@ class _PlayerScreenState extends State<PlayerScreen> {
                                     borderRadius: BorderRadius.circular(8),
                                   ),
                                   child: Text(
-                                    _subtitles[_currentIndex!].text,
+                                    _subtitles[displaySubtitleIndex].text,
                                     textAlign: TextAlign.center,
                                     maxLines: 3,
                                     overflow: TextOverflow.ellipsis,
                                     style: TextStyle(
-                                      color: subtitleTextColor,
+                                      color: pm.isTalkingReview
+                                          ? reviewSubtitleColor
+                                          : subtitleTextColor,
                                       fontSize: 22,
                                       fontWeight: FontWeight.w500,
                                       height: 1.3,
@@ -942,8 +943,8 @@ class _PlayerScreenState extends State<PlayerScreen> {
                           // Talking practice feedback. Keeping this inside the
                           // video stack anchors it at the requested lower-center
                           // position even when the lyrics panel is shown/hidden.
-                          // The subtitle view moves upward in Talking mode, so
-                          // this remains in the lower position below the lyric.
+                          // Subtitles and this waveform are mutually exclusive,
+                          // so both occupy the same lower Talking-mode slot.
                           if (pm.playerMode == PlayerMode.talking)
                             const Positioned(
                               left: 0,

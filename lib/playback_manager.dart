@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:io';
+import 'dart:math';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -114,6 +115,7 @@ class PlaybackManager extends ChangeNotifier {
   bool _isTalkingPause = false;
   bool _talkingRecordingStopped = false;
   Timer? _talkingRecordingLimitTimer;
+  int _talkingReviewColorIndex = 0;
   int? _talkingPreviousIndex;
   int? _talkingNextIndex;
   VoidCallback? onPlayPreviousLyric;
@@ -154,7 +156,20 @@ class PlaybackManager extends ChangeNotifier {
   bool get isTalkingPause => _isTalkingPause;
   bool get isTalkingRecording => _isTalkingPause && !_talkingRecordingStopped;
   bool get isTalkingReview => _isTalkingPause && _talkingRecordingStopped;
+  int get talkingReviewColorIndex => _talkingReviewColorIndex;
   static const talkingRecordingLimit = Duration(minutes: 4);
+
+  /// Lyric that the UI should display. Unlike the decoder's raw subtitle
+  /// stream, this remains on the repeated cue while an automatic seek returns
+  /// to its start, preventing the following cue from flashing at the boundary.
+  int? get displayLyricIndex {
+    final repeat = _repeatLyricIndex;
+    if (repeat != null && repeat >= 0 && repeat < _subtitles.length) {
+      return repeat;
+    }
+    final current = currentLyricIndex;
+    return current >= 0 && current < _subtitles.length ? current : null;
+  }
 
   int get currentLyricIndex {
     if (_subtitles.isEmpty) return -1;
@@ -592,10 +607,8 @@ class PlaybackManager extends ChangeNotifier {
         _hasMedia &&
         (_playerMode == PlayerMode.listening ||
             _playerMode == PlayerMode.talking)) {
-      for (final entry in _subtitles.reversed) {
-        text = entry.textAt(_position);
-        if (text != null) break;
-      }
+      final index = displayLyricIndex;
+      if (index != null) text = _subtitles[index].text;
     }
     if (text == _desktopLyricText) return;
     _desktopLyricText = text;
@@ -799,6 +812,7 @@ class PlaybackManager extends ChangeNotifier {
     _talkingRecordingLimitTimer?.cancel();
     _talkingRecordingLimitTimer = null;
     _talkingRecordingStopped = true;
+    _talkingReviewColorIndex = Random().nextInt(3);
     onTalkingPauseChanged?.call();
     notifyListeners();
 
