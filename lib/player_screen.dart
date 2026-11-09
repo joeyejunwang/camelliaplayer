@@ -751,6 +751,22 @@ class _PlayerScreenState extends State<PlayerScreen> {
     final bottomPadding = MediaQuery.of(context).padding.bottom;
     final pm = PlaybackManager.instance;
     final hasMedia = pm.hasMedia;
+    final theme = Theme.of(context);
+    final dark = theme.brightness == Brightness.dark;
+    final videoBackdrop = dark
+        ? AppColors.videoBackdrop
+        : theme.colorScheme.surface;
+    final overlaySurface = dark
+        ? Colors.black.withValues(alpha: 0.5)
+        : theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.92);
+    final overlayIconColor = dark ? Colors.white : theme.colorScheme.onSurface;
+    final disabledOverlayIconColor = dark
+        ? Colors.white38
+        : theme.colorScheme.onSurface.withValues(alpha: 0.38);
+    final subtitleBackground = dark
+        ? const Color(0xAA000000)
+        : theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.94);
+    final subtitleTextColor = dark ? Colors.white : theme.colorScheme.onSurface;
 
     void noop() {}
 
@@ -796,7 +812,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
       child: Focus(
         autofocus: true,
         child: Scaffold(
-          backgroundColor: AppColors.videoBackdrop,
+          backgroundColor: videoBackdrop,
           body: Column(
             children: [
               CustomTitleBar(onClose: persistAndFlushBeforeClose),
@@ -817,10 +833,12 @@ class _PlayerScreenState extends State<PlayerScreen> {
                                       child: Column(
                                         mainAxisSize: MainAxisSize.min,
                                         children: [
-                                          const Icon(
+                                          Icon(
                                             Icons.music_note_rounded,
                                             size: 80,
-                                            color: Colors.white70,
+                                            color: theme
+                                                .colorScheme
+                                                .onSurfaceVariant,
                                           ),
                                           const SizedBox(height: 16),
                                           Text(
@@ -828,8 +846,9 @@ class _PlayerScreenState extends State<PlayerScreen> {
                                             textAlign: TextAlign.center,
                                             maxLines: 2,
                                             overflow: TextOverflow.ellipsis,
-                                            style: const TextStyle(
-                                              color: Colors.white,
+                                            style: TextStyle(
+                                              color:
+                                                  theme.colorScheme.onSurface,
                                               fontSize: 20,
                                             ),
                                           ),
@@ -839,8 +858,16 @@ class _PlayerScreenState extends State<PlayerScreen> {
                                   : Video(
                                       controller: _videoController,
                                       controls: NoVideoControls,
+                                      fill: videoBackdrop,
                                       subtitleViewConfiguration:
                                           SubtitleViewConfiguration(
+                                            style: TextStyle(
+                                              height: 1.4,
+                                              fontSize: 32,
+                                              color: subtitleTextColor,
+                                              backgroundColor:
+                                                  subtitleBackground,
+                                            ),
                                             padding: EdgeInsets.fromLTRB(
                                               16,
                                               0,
@@ -880,7 +907,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
                                     vertical: 8,
                                   ),
                                   decoration: BoxDecoration(
-                                    color: Colors.black.withValues(alpha: 0.55),
+                                    color: subtitleBackground,
                                     borderRadius: BorderRadius.circular(8),
                                   ),
                                   child: Text(
@@ -888,8 +915,8 @@ class _PlayerScreenState extends State<PlayerScreen> {
                                     textAlign: TextAlign.center,
                                     maxLines: 3,
                                     overflow: TextOverflow.ellipsis,
-                                    style: const TextStyle(
-                                      color: Colors.white,
+                                    style: TextStyle(
+                                      color: subtitleTextColor,
                                       fontSize: 22,
                                       fontWeight: FontWeight.w500,
                                       height: 1.3,
@@ -908,7 +935,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
                             const Positioned(
                               left: 0,
                               right: 0,
-                              bottom: 16,
+                              bottom: 6,
                               child: Center(child: TalkingVoiceWave()),
                             ),
 
@@ -917,7 +944,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
                             top: 8,
                             left: 8,
                             child: Material(
-                              color: Colors.black.withValues(alpha: 0.5),
+                              color: overlaySurface,
                               borderRadius: BorderRadius.circular(20),
                               child: InkWell(
                                 onTap: () async {
@@ -930,11 +957,11 @@ class _PlayerScreenState extends State<PlayerScreen> {
                                   Navigator.of(context).pop();
                                 },
                                 borderRadius: BorderRadius.circular(20),
-                                child: const Padding(
-                                  padding: EdgeInsets.all(8),
+                                child: Padding(
+                                  padding: const EdgeInsets.all(8),
                                   child: Icon(
                                     Icons.arrow_back,
-                                    color: Colors.white,
+                                    color: overlayIconColor,
                                     size: 22,
                                   ),
                                 ),
@@ -947,7 +974,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
                             top: 8,
                             right: 8,
                             child: Material(
-                              color: Colors.black.withValues(alpha: 0.5),
+                              color: overlaySurface,
                               borderRadius: BorderRadius.circular(20),
                               child: InkWell(
                                 onTap:
@@ -965,8 +992,8 @@ class _PlayerScreenState extends State<PlayerScreen> {
                                     color:
                                         pm.playerMode == PlayerMode.listening ||
                                             pm.playerMode == PlayerMode.talking
-                                        ? Colors.white
-                                        : Colors.white38,
+                                        ? overlayIconColor
+                                        : disabledOverlayIconColor,
                                     size: 22,
                                   ),
                                 ),

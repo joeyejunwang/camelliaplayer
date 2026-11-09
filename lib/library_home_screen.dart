@@ -46,6 +46,7 @@ class _LibraryHomeScreenState extends State<LibraryHomeScreen> {
   bool _dragging = false;
   bool _loading = true;
   int _loadRevision = 0;
+  String? _openFolderPath;
 
   @override
   void initState() {
@@ -107,6 +108,10 @@ class _LibraryHomeScreenState extends State<LibraryHomeScreen> {
     setState(() {
       _library = clean;
       _folderFiles = scans;
+      if (_openFolderPath != null &&
+          !folders.any((path) => _key(path) == _key(_openFolderPath!))) {
+        _openFolderPath = null;
+      }
       _loading = false;
     });
     if (folders.length != stored.folderPaths.length ||
@@ -186,6 +191,9 @@ class _LibraryHomeScreenState extends State<LibraryHomeScreen> {
     setState(() {
       _library = value;
       _folderFiles = Map.of(_folderFiles)..remove(path);
+      if (_openFolderPath != null && _key(_openFolderPath!) == _key(path)) {
+        _openFolderPath = null;
+      }
     });
   }
 
@@ -208,9 +216,20 @@ class _LibraryHomeScreenState extends State<LibraryHomeScreen> {
     for (final path in _library.filePaths) {
       if (seen.add(_key(path))) files.add(path);
     }
-    final last = _lastPlayed;
-    if (last != null && seen.add(_key(last.path))) files.add(last.path);
     return files;
+  }
+
+  bool _insideAddedFolder(String path) =>
+      _library.folderPaths.any((folder) => p.isWithin(folder, path));
+
+  void _openFolder(String path) {
+    _searchController.clear();
+    setState(() => _openFolderPath = path);
+  }
+
+  void _closeFolder() {
+    _searchController.clear();
+    setState(() => _openFolderPath = null);
   }
 
   bool _matches(String value) {
@@ -219,6 +238,7 @@ class _LibraryHomeScreenState extends State<LibraryHomeScreen> {
   }
 
   List<String> get _visibleFolders {
+    if (_openFolderPath != null) return const [];
     final value =
         _library.folderPaths
             .where((path) => _matches('$path ${p.basename(path)}'))
@@ -235,7 +255,10 @@ class _LibraryHomeScreenState extends State<LibraryHomeScreen> {
   }
 
   List<String> get _visibleFiles {
-    final value = _allFiles
+    final source = _openFolderPath == null
+        ? _library.filePaths.where((path) => !_insideAddedFolder(path))
+        : (_folderFiles[_openFolderPath] ?? const <String>[]);
+    final value = source
         .where((path) => _matches('$path ${p.basename(path)}'))
         .toList();
     switch (_sort) {
@@ -334,6 +357,7 @@ class _LibraryHomeScreenState extends State<LibraryHomeScreen> {
   Widget build(BuildContext context) {
     final folders = _visibleFolders;
     final files = _visibleFiles;
+    final openFolder = _openFolderPath;
     return Scaffold(
       backgroundColor: Colors.black,
       body: Column(
@@ -355,7 +379,14 @@ class _LibraryHomeScreenState extends State<LibraryHomeScreen> {
                     child: Column(
                       children: [
                         _Header(
-                          count: _allFiles.length,
+                          title: openFolder == null
+                              ? 'ALL VIDEOS'
+                              : p.basename(openFolder).toUpperCase(),
+                          count: openFolder == null
+                              ? _allFiles.length
+                              : (_folderFiles[openFolder]?.length ?? 0),
+                          folderView: openFolder != null,
+                          onBack: openFolder == null ? null : _closeFolder,
                           onAddFolder: _addFolder,
                           onAddVideo: _addVideo,
                           onSettings: _showSettings,
@@ -388,6 +419,7 @@ class _LibraryHomeScreenState extends State<LibraryHomeScreen> {
                                   onPlay: _play,
                                   onRemoveFile: _removeFile,
                                   onRemoveFolder: _removeFolder,
+                                  onOpenFolder: _openFolder,
                                   onAddVideo: _addVideo,
                                 ),
                         ),
@@ -460,40 +492,66 @@ class _Background extends StatelessWidget {
 
 class _Header extends StatelessWidget {
   const _Header({
+    required this.title,
     required this.count,
+    required this.folderView,
+    required this.onBack,
     required this.onAddFolder,
     required this.onAddVideo,
     required this.onSettings,
   });
+  final String title;
   final int count;
+  final bool folderView;
+  final VoidCallback? onBack;
   final VoidCallback onAddFolder;
   final VoidCallback onAddVideo;
   final VoidCallback onSettings;
 
   @override
   Widget build(BuildContext context) {
-    final copy = Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+    final copy = Row(
       children: [
-        Text(
-          'ALL VIDEOS',
-          style: TextStyle(
-            color: Theme.of(context).colorScheme.onSurface,
-            fontSize: 29,
-            fontWeight: FontWeight.w900,
-            letterSpacing: -0.8,
-            height: 1,
+        if (onBack != null) ...[
+          IconButton(
+            onPressed: onBack,
+            tooltip: 'Back to all videos',
+            icon: const Icon(Icons.arrow_back_rounded),
           ),
-        ),
-        const SizedBox(height: 5),
-        Text(
-          count == 0
-              ? 'Add videos or video folders, then play anything in your library.'
-              : '$count media item${count == 1 ? '' : 's'} ready to play.',
-          style: TextStyle(
-            color: Theme.of(context).colorScheme.onSurfaceVariant,
-            fontSize: 13,
-            fontStyle: FontStyle.italic,
+          const SizedBox(width: 4),
+        ],
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                title,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  color: Theme.of(context).colorScheme.onSurface,
+                  fontSize: 29,
+                  fontWeight: FontWeight.w900,
+                  letterSpacing: -0.8,
+                  height: 1,
+                ),
+              ),
+              const SizedBox(height: 5),
+              Text(
+                count == 0
+                    ? folderView
+                          ? 'This folder contains no supported media files.'
+                          : 'Add videos or video folders, then play anything in your library.'
+                    : folderView
+                    ? '$count media item${count == 1 ? '' : 's'} in this folder.'
+                    : '$count media item${count == 1 ? '' : 's'} ready to play.',
+                style: TextStyle(
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  fontSize: 13,
+                  fontStyle: FontStyle.italic,
+                ),
+              ),
+            ],
           ),
         ),
       ],
@@ -1046,6 +1104,7 @@ class _LibraryItems extends StatelessWidget {
     required this.onPlay,
     required this.onRemoveFile,
     required this.onRemoveFolder,
+    required this.onOpenFolder,
     required this.onAddVideo,
   });
   final List<String> folders;
@@ -1058,6 +1117,7 @@ class _LibraryItems extends StatelessWidget {
   final ValueChanged<String> onPlay;
   final ValueChanged<String> onRemoveFile;
   final ValueChanged<String> onRemoveFolder;
+  final ValueChanged<String> onOpenFolder;
   final VoidCallback onAddVideo;
 
   @override
@@ -1073,6 +1133,7 @@ class _LibraryItems extends StatelessWidget {
           path: path,
           count: folderCounts[path] ?? 0,
           grid: gridView,
+          onOpen: () => onOpenFolder(path),
           onRemove: () => onRemoveFolder(path),
         );
       }
@@ -1131,15 +1192,18 @@ class _FolderCard extends StatelessWidget {
     required this.path,
     required this.count,
     required this.grid,
+    required this.onOpen,
     required this.onRemove,
   });
   final String path;
   final int count;
   final bool grid;
+  final VoidCallback onOpen;
   final VoidCallback onRemove;
 
   @override
   Widget build(BuildContext context) => _CardFrame(
+    onTap: onOpen,
     child: Padding(
       padding: EdgeInsets.symmetric(horizontal: 15, vertical: grid ? 12 : 6),
       child: Row(

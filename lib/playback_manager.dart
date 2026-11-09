@@ -424,8 +424,8 @@ class PlaybackManager extends ChangeNotifier {
   }
 
   /// Practice modes keep the user's Listening visibility choices for when that
-  /// mode is selected again. Talking starts with all lyrics hidden, but the
-  /// user may reveal the subtitle track, side lyrics, or desktop lyrics.
+  /// mode is selected again. Talking starts with the subtitle track and side
+  /// lyrics visible; desktop lyrics remain available but off by default.
   void setPlayerMode(PlayerMode mode) {
     if (mode == PlayerMode.testing && _testingLyricIndices.isEmpty) {
       mode = PlayerMode.marking;
@@ -442,6 +442,10 @@ class PlaybackManager extends ChangeNotifier {
       _showSubtitleTrack = _listeningShowSubtitleTrack;
       _showDesktopLyric = _listeningShowDesktopLyric;
       _showLyric = _listeningShowLyric;
+    } else if (mode == PlayerMode.talking) {
+      _showSubtitleTrack = true;
+      _showDesktopLyric = false;
+      _showLyric = true;
     } else {
       _showSubtitleTrack = false;
       _showDesktopLyric = false;
