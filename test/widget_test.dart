@@ -21,6 +21,8 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 300));
     expect(find.text('Recording source'), findsOneWidget);
+    expect(find.text('Light'), findsOneWidget);
+    expect(find.text('Dark'), findsOneWidget);
     expect(find.text('APPID'), findsOneWidget);
     expect(find.text('APIKey'), findsOneWidget);
     expect(find.text('APISecret'), findsOneWidget);

@@ -60,6 +60,7 @@ flutter pub get
 Windows:
 
 ```console
+C:\Users\hpw\AppData\Roaming\com.example\flutter_video_player
 flutter run -d windows
 ```
 

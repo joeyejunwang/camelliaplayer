@@ -7,6 +7,7 @@ import 'package:path/path.dart' as p;
 import 'package:record/record.dart';
 
 import 'app_colors.dart';
+import 'app_theme_controller.dart';
 import 'custom_title_bar.dart';
 import 'last_played.dart';
 import 'media_library_store.dart';
@@ -407,10 +408,13 @@ class _LibraryHomeScreenState extends State<LibraryHomeScreen> {
     await showDialog<void>(
       context: context,
       builder: (_) => _LibrarySettingsDialog(
-        initialGridView: _gridView,
+        initialThemeMode: _library.themeMode,
         initialSort: _sort,
         initialConfig: _library,
-        onViewChanged: (value) => setState(() => _gridView = value),
+        onThemeChanged: (value) async {
+          AppThemeController.setMode(value);
+          await _save(_library.copyWith(themeMode: value));
+        },
         onSortChanged: (value) => setState(() => _sort = value),
         onSaveRecorder:
             ({
@@ -438,15 +442,20 @@ class _LibraryHomeScreenState extends State<LibraryHomeScreen> {
 class _Background extends StatelessWidget {
   const _Background();
   @override
-  Widget build(BuildContext context) => const DecoratedBox(
-    decoration: BoxDecoration(
-      gradient: LinearGradient(
-        begin: Alignment.topCenter,
-        end: Alignment.bottomCenter,
-        colors: [Color(0xFF080307), Colors.black, Color(0xFF12080F)],
+  Widget build(BuildContext context) {
+    final dark = Theme.of(context).brightness == Brightness.dark;
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: dark
+              ? const [Color(0xFF080307), Colors.black, Color(0xFF12080F)]
+              : const [Color(0xFFFFF8FB), Colors.white, Color(0xFFFFEEF5)],
+        ),
       ),
-    ),
-  );
+    );
+  }
 }
 
 class _Header extends StatelessWidget {
@@ -466,10 +475,10 @@ class _Header extends StatelessWidget {
     final copy = Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text(
+        Text(
           'ALL VIDEOS',
           style: TextStyle(
-            color: Colors.white,
+            color: Theme.of(context).colorScheme.onSurface,
             fontSize: 29,
             fontWeight: FontWeight.w900,
             letterSpacing: -0.8,
@@ -481,8 +490,8 @@ class _Header extends StatelessWidget {
           count == 0
               ? 'Add videos or video folders, then play anything in your library.'
               : '$count media item${count == 1 ? '' : 's'} ready to play.',
-          style: const TextStyle(
-            color: Color(0xFFD8C4CE),
+          style: TextStyle(
+            color: Theme.of(context).colorScheme.onSurfaceVariant,
             fontSize: 13,
             fontStyle: FontStyle.italic,
           ),
@@ -553,18 +562,18 @@ class _Header extends StatelessWidget {
 
 class _LibrarySettingsDialog extends StatefulWidget {
   const _LibrarySettingsDialog({
-    required this.initialGridView,
+    required this.initialThemeMode,
     required this.initialSort,
     required this.initialConfig,
-    required this.onViewChanged,
+    required this.onThemeChanged,
     required this.onSortChanged,
     required this.onSaveRecorder,
   });
 
-  final bool initialGridView;
+  final String initialThemeMode;
   final _LibrarySort initialSort;
   final MediaLibrary initialConfig;
-  final ValueChanged<bool> onViewChanged;
+  final Future<void> Function(String value) onThemeChanged;
   final ValueChanged<_LibrarySort> onSortChanged;
   final Future<void> Function({
     required String deviceId,
@@ -582,7 +591,7 @@ class _LibrarySettingsDialog extends StatefulWidget {
 class _LibrarySettingsDialogState extends State<_LibrarySettingsDialog> {
   final _formKey = GlobalKey<FormState>();
   final _deviceProbe = AudioRecorder();
-  late bool _gridView;
+  late String _themeMode;
   late _LibrarySort _sort;
   late String _deviceId;
   late final TextEditingController _appIdController;
@@ -597,7 +606,7 @@ class _LibrarySettingsDialogState extends State<_LibrarySettingsDialog> {
   @override
   void initState() {
     super.initState();
-    _gridView = widget.initialGridView;
+    _themeMode = widget.initialThemeMode;
     _sort = widget.initialSort;
     _deviceId = widget.initialConfig.recordingDeviceId;
     _appIdController = TextEditingController(
@@ -673,28 +682,31 @@ class _LibrarySettingsDialogState extends State<_LibrarySettingsDialog> {
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('Library', style: Theme.of(context).textTheme.titleSmall),
+                Text(
+                  'Appearance',
+                  style: Theme.of(context).textTheme.titleSmall,
+                ),
                 const SizedBox(height: 12),
                 SizedBox(
                   width: double.infinity,
-                  child: SegmentedButton<bool>(
+                  child: SegmentedButton<String>(
                     segments: const [
                       ButtonSegment(
-                        value: true,
-                        icon: Icon(Icons.grid_view_rounded),
-                        label: Text('Grid'),
+                        value: 'light',
+                        icon: Icon(Icons.light_mode_rounded),
+                        label: Text('Light'),
                       ),
                       ButtonSegment(
-                        value: false,
-                        icon: Icon(Icons.view_list_rounded),
-                        label: Text('List'),
+                        value: 'dark',
+                        icon: Icon(Icons.dark_mode_rounded),
+                        label: Text('Dark'),
                       ),
                     ],
-                    selected: {_gridView},
+                    selected: {_themeMode},
                     onSelectionChanged: (selection) {
                       final value = selection.first;
-                      setState(() => _gridView = value);
-                      widget.onViewChanged(value);
+                      setState(() => _themeMode = value);
+                      widget.onThemeChanged(value);
                     },
                   ),
                 ),
@@ -901,7 +913,7 @@ class _Toolbar extends StatelessWidget {
         isDense: true,
         contentPadding: const EdgeInsets.symmetric(vertical: 10),
         constraints: const BoxConstraints(minHeight: 40, maxHeight: 40),
-        fillColor: const Color(0xFF3A202C),
+        fillColor: Theme.of(context).colorScheme.surfaceContainer,
         enabledBorder: border,
         focusedBorder: border,
       ),
@@ -988,7 +1000,7 @@ class _ControlBox extends StatelessWidget {
     height: 40,
     padding: padding ?? const EdgeInsets.symmetric(horizontal: 12),
     decoration: BoxDecoration(
-      color: const Color(0xFF3A202C),
+      color: Theme.of(context).colorScheme.surfaceContainer,
       borderRadius: BorderRadius.circular(13),
       border: Border.all(color: const Color(0xFFD64D7D)),
     ),
@@ -1216,7 +1228,7 @@ class _MediaCard extends StatelessWidget {
                   style: TextStyle(
                     fontSize: 10,
                     color: resumeIndex == null
-                        ? const Color(0xFFD9C4CD)
+                        ? Theme.of(context).colorScheme.onSurfaceVariant
                         : const Color(0xFFFF5D91),
                   ),
                 ),
@@ -1270,25 +1282,30 @@ class _CardFrame extends StatelessWidget {
   final Widget child;
   final VoidCallback? onTap;
   @override
-  Widget build(BuildContext context) => Material(
-    color: Colors.transparent,
-    child: InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(18),
-      child: Ink(
-        decoration: BoxDecoration(
-          gradient: const LinearGradient(
-            colors: [Color(0xFF713A48), Color(0xFF351B28)],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
+  Widget build(BuildContext context) {
+    final dark = Theme.of(context).brightness == Brightness.dark;
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(18),
+        child: Ink(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              colors: dark
+                  ? const [Color(0xFF713A48), Color(0xFF351B28)]
+                  : const [Color(0xFFFFE0EA), Color(0xFFFFF5F8)],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(color: const Color(0xFFD6547E)),
           ),
-          borderRadius: BorderRadius.circular(18),
-          border: Border.all(color: const Color(0xFFD6547E)),
+          child: child,
         ),
-        child: child,
       ),
-    ),
-  );
+    );
+  }
 }
 
 class _Thumbnail extends StatelessWidget {

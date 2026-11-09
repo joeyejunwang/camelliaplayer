@@ -13,6 +13,7 @@ class MediaLibrary {
     this.iseAppId = '',
     this.iseApiKey = '',
     this.iseApiSecret = '',
+    this.themeMode = 'dark',
   });
 
   final List<String> folderPaths;
@@ -22,6 +23,7 @@ class MediaLibrary {
   final String iseAppId;
   final String iseApiKey;
   final String iseApiSecret;
+  final String themeMode;
 
   Map<String, dynamic> toJson() => {
     'folders': folderPaths,
@@ -33,6 +35,7 @@ class MediaLibrary {
     'ise_app_id': iseAppId,
     'ise_api_key': iseApiKey,
     'ise_api_secret': iseApiSecret,
+    'theme_mode': themeMode,
   };
 
   factory MediaLibrary.fromJson(Map<String, dynamic> json) {
@@ -45,6 +48,7 @@ class MediaLibrary {
       iseAppId: _setting(json, 'ise_app_id', 'ISE_APP_ID'),
       iseApiKey: _setting(json, 'ise_api_key', 'ISE_API_KEY'),
       iseApiSecret: _setting(json, 'ise_api_secret', 'ISE_API_SECRET'),
+      themeMode: _themeMode(json['theme_mode']),
     );
   }
 
@@ -56,6 +60,7 @@ class MediaLibrary {
     String? iseAppId,
     String? iseApiKey,
     String? iseApiSecret,
+    String? themeMode,
   }) => MediaLibrary(
     folderPaths: folderPaths ?? this.folderPaths,
     filePaths: filePaths ?? this.filePaths,
@@ -64,6 +69,7 @@ class MediaLibrary {
     iseAppId: iseAppId ?? this.iseAppId,
     iseApiKey: iseApiKey ?? this.iseApiKey,
     iseApiSecret: iseApiSecret ?? this.iseApiSecret,
+    themeMode: themeMode ?? this.themeMode,
   );
 
   static List<String> _stringList(Object? value) {
@@ -72,6 +78,9 @@ class MediaLibrary {
   }
 
   static String _string(Object? value) => value is String ? value.trim() : '';
+
+  static String _themeMode(Object? value) =>
+      _string(value) == 'light' ? 'light' : 'dark';
 
   static String _setting(
     Map<String, dynamic> json,

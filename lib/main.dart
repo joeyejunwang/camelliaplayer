@@ -6,8 +6,10 @@ import 'package:media_kit/media_kit.dart';
 import 'package:window_manager/window_manager.dart';
 
 import 'app_colors.dart';
+import 'app_theme_controller.dart';
 import 'ios_home_screen.dart';
 import 'library_home_screen.dart';
+import 'media_library_store.dart';
 
 /// Main entry point for Camellia Player
 /// Handles the supported Windows, macOS, and iOS platforms.
@@ -23,6 +25,9 @@ Future<void> main() async {
       debugPrint('Desktop window initialization failed: $e');
     }
   }
+
+  final savedSettings = await MediaLibraryStore.read();
+  AppThemeController.setMode(savedSettings.themeMode);
 
   runApp(const CamelliaPlayerApp());
 }
@@ -116,29 +121,32 @@ class CamelliaPlayerApp extends StatelessWidget {
       brightness: Brightness.light,
     );
 
-    return MaterialApp(
-      title: 'Camellia Player',
-      debugShowCheckedModeBanner: false,
-      themeMode: ThemeMode.dark,
-      theme: ThemeData(
-        useMaterial3: true,
-        colorScheme: lightScheme,
-        scaffoldBackgroundColor: lightScheme.surface,
-      ),
-      darkTheme: ThemeData(
-        useMaterial3: true,
-        colorScheme: darkScheme,
-        scaffoldBackgroundColor: darkScheme.surface,
-        sliderTheme: const SliderThemeData(
-          activeTrackColor: AppColors.camellia,
-          thumbColor: AppColors.camellia,
+    return ValueListenableBuilder<ThemeMode>(
+      valueListenable: AppThemeController.mode,
+      builder: (context, themeMode, _) => MaterialApp(
+        title: 'Camellia Player',
+        debugShowCheckedModeBanner: false,
+        themeMode: themeMode,
+        theme: ThemeData(
+          useMaterial3: true,
+          colorScheme: lightScheme,
+          scaffoldBackgroundColor: lightScheme.surface,
         ),
-        progressIndicatorTheme: const ProgressIndicatorThemeData(
-          color: AppColors.camellia,
+        darkTheme: ThemeData(
+          useMaterial3: true,
+          colorScheme: darkScheme,
+          scaffoldBackgroundColor: darkScheme.surface,
+          sliderTheme: const SliderThemeData(
+            activeTrackColor: AppColors.camellia,
+            thumbColor: AppColors.camellia,
+          ),
+          progressIndicatorTheme: const ProgressIndicatorThemeData(
+            color: AppColors.camellia,
+          ),
+          iconTheme: const IconThemeData(color: Colors.white),
         ),
-        iconTheme: const IconThemeData(color: Colors.white),
+        home: const LibraryHomeScreen(),
       ),
-      home: const LibraryHomeScreen(),
     );
   }
 }

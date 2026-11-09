@@ -11,6 +11,7 @@ void main() {
       iseAppId: 'app-id',
       iseApiKey: 'api-key',
       iseApiSecret: 'api-secret',
+      themeMode: 'light',
     );
 
     final restored = MediaLibrary.fromJson(library.toJson());
@@ -20,6 +21,7 @@ void main() {
     expect(restored.iseAppId, 'app-id');
     expect(restored.iseApiKey, 'api-key');
     expect(restored.iseApiSecret, 'api-secret');
+    expect(restored.themeMode, 'light');
   });
 
   test('copyWith keeps recorder settings during library changes', () {
@@ -37,5 +39,14 @@ void main() {
     expect(changed.iseAppId, 'app-id');
     expect(changed.iseApiKey, 'api-key');
     expect(changed.iseApiSecret, 'api-secret');
+    expect(changed.themeMode, 'dark');
+  });
+
+  test('unknown or missing theme values default to dark', () {
+    expect(MediaLibrary.fromJson(const {}).themeMode, 'dark');
+    expect(
+      MediaLibrary.fromJson(const {'theme_mode': 'system'}).themeMode,
+      'dark',
+    );
   });
 }
