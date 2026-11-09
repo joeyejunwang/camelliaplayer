@@ -8,21 +8,6 @@ void main() {
     expect(PlayerMode.values[1], PlayerMode.talking);
   });
 
-  test('Talking pause follows lyric duration within practical bounds', () {
-    expect(
-      PlaybackManager.talkingPauseDuration(const Duration(seconds: 1)),
-      const Duration(seconds: 2),
-    );
-    expect(
-      PlaybackManager.talkingPauseDuration(const Duration(seconds: 4)),
-      const Duration(seconds: 4),
-    );
-    expect(
-      PlaybackManager.talkingPauseDuration(const Duration(seconds: 15)),
-      const Duration(seconds: 10),
-    );
-  });
-
   test('Talking mode can show and hide the side lyrics', () {
     final manager = PlaybackManager.instance;
     manager.setPlayerMode(PlayerMode.talking);
@@ -35,5 +20,19 @@ void main() {
 
     manager.setPlayerMode(PlayerMode.listening);
     expect(manager.showLyric, isTrue);
+  });
+
+  test('Talking mode can show and hide the subtitle track', () {
+    final manager = PlaybackManager.instance;
+    manager.setPlayerMode(PlayerMode.talking);
+    expect(manager.showSubtitleTrack, isFalse);
+
+    manager.toggleShowSubtitleTrack();
+    expect(manager.showSubtitleTrack, isTrue);
+    manager.toggleShowSubtitleTrack();
+    expect(manager.showSubtitleTrack, isFalse);
+
+    manager.setPlayerMode(PlayerMode.listening);
+    expect(manager.showSubtitleTrack, isTrue);
   });
 }

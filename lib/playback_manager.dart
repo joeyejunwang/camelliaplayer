@@ -111,7 +111,7 @@ class PlaybackManager extends ChangeNotifier {
   int? _repeatLyricIndex;
   Duration? _automaticSeekTarget;
   int _seekRevision = 0;
-  Timer? _talkingPauseTimer;
+  bool _isTalkingPause = false;
   int? _talkingNextIndex;
   VoidCallback? onPlayPreviousLyric;
   VoidCallback? onPlayNextLyric;
@@ -147,12 +147,7 @@ class PlaybackManager extends ChangeNotifier {
   List<SubtitleEntry> get subtitles => _subtitles;
   bool get hasSubtitles => _subtitles.isNotEmpty;
   List<int> get testingLyricIndices => _testingLyricIndices;
-  bool get isTalkingPause => _talkingPauseTimer != null;
-
-  /// Gives the learner roughly one lyric-length turn to speak, without
-  /// making very short cues frantic or long cues stall the session.
-  static Duration talkingPauseDuration(Duration lyricDuration) =>
-      Duration(milliseconds: lyricDuration.inMilliseconds.clamp(2000, 10000));
+  bool get isTalkingPause => _isTalkingPause;
 
   int get currentLyricIndex {
     if (_subtitles.isEmpty) return -1;
@@ -350,7 +345,7 @@ class PlaybackManager extends ChangeNotifier {
   }
 
   void togglePlay() {
-    if (_talkingPauseTimer != null) {
+    if (_isTalkingPause) {
       _finishTalkingPause();
       return;
     }
@@ -428,9 +423,9 @@ class PlaybackManager extends ChangeNotifier {
     await jumpToLyricIndex(0);
   }
 
-  /// Practice modes hide subtitles while keeping the user's Listening
-  /// visibility choices for when that mode is selected again. Talking starts
-  /// with the side lyrics hidden, but the user may reveal them while speaking.
+  /// Practice modes keep the user's Listening visibility choices for when that
+  /// mode is selected again. Talking starts with all lyrics hidden, but the
+  /// user may reveal the subtitle track, side lyrics, or desktop lyrics.
   void setPlayerMode(PlayerMode mode) {
     if (mode == PlayerMode.testing && _testingLyricIndices.isEmpty) {
       mode = PlayerMode.marking;
@@ -551,7 +546,10 @@ class PlaybackManager extends ChangeNotifier {
   }
 
   void toggleShowSubtitleTrack() {
-    if (_playerMode != PlayerMode.listening) return;
+    if (_playerMode != PlayerMode.listening &&
+        _playerMode != PlayerMode.talking) {
+      return;
+    }
     _showSubtitleTrack = !_showSubtitleTrack;
     _applySubtitleTrackVisibility();
     notifyListeners();
@@ -560,11 +558,14 @@ class PlaybackManager extends ChangeNotifier {
   void toggleShowDesktopLyric() {
     if (!Platform.isWindows ||
         !_hasMedia ||
-        _playerMode != PlayerMode.listening) {
+        (_playerMode != PlayerMode.listening &&
+            _playerMode != PlayerMode.talking)) {
       return;
     }
     _showDesktopLyric = !_showDesktopLyric;
-    _listeningShowDesktopLyric = _showDesktopLyric;
+    if (_playerMode == PlayerMode.listening) {
+      _listeningShowDesktopLyric = _showDesktopLyric;
+    }
     _syncDesktopLyric();
     notifyListeners();
   }
@@ -572,7 +573,10 @@ class PlaybackManager extends ChangeNotifier {
   void _syncDesktopLyric() {
     if (!Platform.isWindows) return;
     String? text;
-    if (_showDesktopLyric && _hasMedia && _playerMode == PlayerMode.listening) {
+    if (_showDesktopLyric &&
+        _hasMedia &&
+        (_playerMode == PlayerMode.listening ||
+            _playerMode == PlayerMode.talking)) {
       for (final entry in _subtitles.reversed) {
         text = entry.textAt(_position);
         if (text != null) break;
@@ -660,7 +664,10 @@ class PlaybackManager extends ChangeNotifier {
     _automaticSeekTarget = target;
     try {
       await player.seek(target);
-      if (revision == _seekRevision && resume && !_isPlaying) {
+      // Calling play is idempotent. Do it whenever resume was requested
+      // instead of trusting the cached playing stream value, which can still
+      // be stale immediately after a Talking-mode pause.
+      if (revision == _seekRevision && resume) {
         await player.play();
       }
     } catch (_) {
@@ -692,7 +699,7 @@ class PlaybackManager extends ChangeNotifier {
   /// while seeking to a keyframe, which must not reset the repeat count.
   void _maybeAdvanceLyric() {
     if (_subtitles.isEmpty) return;
-    if (_talkingPauseTimer != null) return;
+    if (_isTalkingPause) return;
     if (!_isPlaying) return;
     final subs = _subtitles;
 
@@ -742,7 +749,7 @@ class PlaybackManager extends ChangeNotifier {
           : (idx + 1) % subs.length;
       final next = subs[nextIdx];
       if (_playerMode == PlayerMode.talking) {
-        _startTalkingPause(nextIdx, current);
+        _startTalkingPause(nextIdx);
         return;
       }
       _setLoopForIndex(nextIdx);
@@ -753,20 +760,25 @@ class PlaybackManager extends ChangeNotifier {
     }
   }
 
-  void _startTalkingPause(int nextIndex, SubtitleEntry current) {
-    if (_talkingPauseTimer != null) return;
+  void _startTalkingPause(int nextIndex) {
+    if (_isTalkingPause) return;
     _talkingNextIndex = nextIndex;
+    _isTalkingPause = true;
     unawaited(player.pause());
-    _talkingPauseTimer = Timer(
-      talkingPauseDuration(current.end - current.start),
-      _finishTalkingPause,
-    );
     notifyListeners();
+  }
+
+  /// Completes the learner's manual speaking turn and continues playback.
+  /// Called by the clickable waveform panel in Talking mode.
+  void finishTalkingPause() {
+    if (!_isTalkingPause) return;
+    _finishTalkingPause();
   }
 
   void _finishTalkingPause() {
     final nextIndex = _talkingNextIndex;
     _cancelTalkingPause();
+    notifyListeners();
     if (!_hasMedia ||
         _playerMode != PlayerMode.talking ||
         nextIndex == null ||
@@ -776,12 +788,17 @@ class PlaybackManager extends ChangeNotifier {
     }
     _setLoopForIndex(nextIndex);
     _repeatLyricIndex = nextIndex;
-    _seekAutomatically(_subtitles[nextIndex].start, resume: true);
+    // A decoder can leave the previous repeat seek pending (for example when
+    // it lands on a distant keyframe). The Talking resume must supersede it;
+    // otherwise _seekAutomatically returns early and the player remains
+    // paused until the user presses Play again.
+    _automaticSeekTarget = null;
+    _seekRevision++;
+    unawaited(_seekAutomatically(_subtitles[nextIndex].start, resume: true));
   }
 
   void _cancelTalkingPause() {
-    _talkingPauseTimer?.cancel();
-    _talkingPauseTimer = null;
+    _isTalkingPause = false;
     _talkingNextIndex = null;
   }
 

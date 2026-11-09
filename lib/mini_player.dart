@@ -830,10 +830,14 @@ class MiniPlayerBar extends StatelessWidget {
                             ? Icons.closed_caption_rounded
                             : Icons.closed_caption_off_rounded,
                         onPressed:
-                            hasMedia && pm.playerMode == PlayerMode.listening
+                            hasMedia &&
+                                (pm.playerMode == PlayerMode.listening ||
+                                    pm.playerMode == PlayerMode.talking)
                             ? () => pm.toggleShowSubtitleTrack()
                             : null,
-                        tooltip: pm.playerMode != PlayerMode.listening
+                        tooltip:
+                            pm.playerMode != PlayerMode.listening &&
+                                pm.playerMode != PlayerMode.talking
                             ? 'Subtitles unavailable in this model'
                             : pm.showSubtitleTrack
                             ? 'Subtitles on (S) — click to turn off'
@@ -870,12 +874,14 @@ class MiniPlayerBar extends StatelessWidget {
                         onPressed:
                             Platform.isWindows &&
                                 hasMedia &&
-                                pm.playerMode == PlayerMode.listening
+                                (pm.playerMode == PlayerMode.listening ||
+                                    pm.playerMode == PlayerMode.talking)
                             ? () => pm.toggleShowDesktopLyric()
                             : null,
                         tooltip: !Platform.isWindows
                             ? 'Desktop lyrics are available on Windows'
-                            : pm.playerMode != PlayerMode.listening
+                            : pm.playerMode != PlayerMode.listening &&
+                                  pm.playerMode != PlayerMode.talking
                             ? 'Desktop lyrics unavailable in this model'
                             : pm.showDesktopLyric
                             ? 'Desktop lyrics on — drag to move; drag an edge to resize'

@@ -14,6 +14,7 @@ import 'marked_lyrics.dart';
 import 'mini_player.dart';
 import 'playback_manager.dart';
 import 'subtitle_loader.dart';
+import 'talking_voice_wave.dart';
 
 class PlayerScreen extends StatefulWidget {
   const PlayerScreen({
@@ -874,6 +875,17 @@ class _PlayerScreenState extends State<PlayerScreen> {
                                   ),
                                 ),
                               ),
+                            ),
+
+                          // Talking practice feedback. Keeping this inside the
+                          // video stack anchors it at the requested lower-center
+                          // position even when the lyrics panel is shown/hidden.
+                          if (pm.playerMode == PlayerMode.talking)
+                            const Positioned(
+                              left: 0,
+                              right: 0,
+                              bottom: 16,
+                              child: Center(child: TalkingVoiceWave()),
                             ),
 
                           // Floating back button
