@@ -112,12 +112,15 @@ class PlaybackManager extends ChangeNotifier {
   Duration? _automaticSeekTarget;
   int _seekRevision = 0;
   bool _isTalkingPause = false;
+  bool _talkingRecordingStopped = false;
+  int? _talkingPreviousIndex;
   int? _talkingNextIndex;
   VoidCallback? onPlayPreviousLyric;
   VoidCallback? onPlayNextLyric;
   VoidCallback? onPlayFirstLyric;
   VoidCallback? onPlayLastLyric;
   VoidCallback? onShowLyricChanged;
+  VoidCallback? onTalkingPauseChanged;
 
   /// The active subtitle list pushed in by the player screen once it has
   /// finished loading the .srt file. Used by [_maybeAdvanceLyric] to walk
@@ -148,6 +151,7 @@ class PlaybackManager extends ChangeNotifier {
   bool get hasSubtitles => _subtitles.isNotEmpty;
   List<int> get testingLyricIndices => _testingLyricIndices;
   bool get isTalkingPause => _isTalkingPause;
+  bool get isTalkingRecording => _isTalkingPause && !_talkingRecordingStopped;
 
   int get currentLyricIndex {
     if (_subtitles.isEmpty) return -1;
@@ -346,7 +350,11 @@ class PlaybackManager extends ChangeNotifier {
 
   void togglePlay() {
     if (_isTalkingPause) {
-      _finishTalkingPause();
+      if (isTalkingRecording) {
+        stopTalkingRecording();
+      } else {
+        _finishTalkingPause();
+      }
       return;
     }
     player.playOrPause();
@@ -753,7 +761,7 @@ class PlaybackManager extends ChangeNotifier {
           : (idx + 1) % subs.length;
       final next = subs[nextIdx];
       if (_playerMode == PlayerMode.talking) {
-        _startTalkingPause(nextIdx);
+        _startTalkingPause(idx, nextIdx);
         return;
       }
       _setLoopForIndex(nextIdx);
@@ -764,12 +772,48 @@ class PlaybackManager extends ChangeNotifier {
     }
   }
 
-  void _startTalkingPause(int nextIndex) {
+  void _startTalkingPause(int previousIndex, int nextIndex) {
     if (_isTalkingPause) return;
+    _talkingPreviousIndex = previousIndex;
     _talkingNextIndex = nextIndex;
+    _talkingRecordingStopped = false;
     _isTalkingPause = true;
     unawaited(player.pause());
+    onTalkingPauseChanged?.call();
     notifyListeners();
+  }
+
+  /// Stops the microphone turn but keeps playback paused. The player seeks
+  /// back to the lyric just spoken so its subtitle can be reviewed. A second
+  /// Play action completes the pause and advances to the next lyric.
+  void stopTalkingRecording() {
+    if (!isTalkingRecording) return;
+    _talkingRecordingStopped = true;
+    onTalkingPauseChanged?.call();
+    notifyListeners();
+
+    final previousIndex = _talkingPreviousIndex;
+    if (!_hasMedia ||
+        previousIndex == null ||
+        previousIndex < 0 ||
+        previousIndex >= _subtitles.length) {
+      return;
+    }
+    _automaticSeekTarget = null;
+    _seekRevision++;
+    unawaited(_seekTalkingReview(_subtitles[previousIndex].start));
+  }
+
+  Future<void> _seekTalkingReview(Duration target) async {
+    if (!_isTalkingPause || !_talkingRecordingStopped || !_hasMedia) return;
+    final revision = ++_seekRevision;
+    _automaticSeekTarget = target;
+    try {
+      await player.pause();
+      await player.seek(target);
+    } catch (_) {
+      if (revision == _seekRevision) _automaticSeekTarget = null;
+    }
   }
 
   /// Completes the learner's manual speaking turn and continues playback.
@@ -802,8 +846,12 @@ class PlaybackManager extends ChangeNotifier {
   }
 
   void _cancelTalkingPause() {
+    final changed = _isTalkingPause;
     _isTalkingPause = false;
+    _talkingRecordingStopped = false;
+    _talkingPreviousIndex = null;
     _talkingNextIndex = null;
+    if (changed) onTalkingPauseChanged?.call();
   }
 
   void stop() {

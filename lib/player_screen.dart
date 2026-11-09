@@ -99,6 +99,9 @@ class _PlayerScreenState extends State<PlayerScreen> {
     pm.onShowLyricChanged = () {
       if (mounted) setState(() {});
     };
+    pm.onTalkingPauseChanged = () {
+      if (mounted) setState(() {});
+    };
 
     _bootstrap();
     _positionSub = pm.player.stream.position.listen((pos) {
@@ -316,6 +319,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
     pm.onPlayFirstLyric = null;
     pm.onPlayLastLyric = null;
     pm.onShowLyricChanged = null;
+    pm.onTalkingPauseChanged = null;
     pm.stop();
     super.dispose();
   }
@@ -861,6 +865,9 @@ class _PlayerScreenState extends State<PlayerScreen> {
                                       fill: videoBackdrop,
                                       subtitleViewConfiguration:
                                           SubtitleViewConfiguration(
+                                            visible:
+                                                pm.showSubtitleTrack &&
+                                                !pm.isTalkingRecording,
                                             style: TextStyle(
                                               height: 1.4,
                                               fontSize: 32,
@@ -891,6 +898,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
                           // audio artwork.
                           if (_isMp3 &&
                               PlaybackManager.instance.showSubtitleTrack &&
+                              !pm.isTalkingRecording &&
                               _currentIndex != null)
                             AnimatedPositioned(
                               duration: const Duration(milliseconds: 180),

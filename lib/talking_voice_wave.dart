@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:path/path.dart' as p;
@@ -29,7 +28,12 @@ class _TalkingVoiceWaveState extends State<TalkingVoiceWave> {
   @override
   void initState() {
     super.initState();
-    PlaybackManager.instance.addListener(_syncRecordingState);
+    final manager = PlaybackManager.instance;
+    _speakingTurn =
+        manager.playerMode == PlayerMode.talking &&
+        manager.isTalkingRecording &&
+        manager.hasMedia;
+    manager.addListener(_syncRecordingState);
     WidgetsBinding.instance.addPostFrameCallback((_) => _syncRecordingState());
   }
 
@@ -44,10 +48,13 @@ class _TalkingVoiceWaveState extends State<TalkingVoiceWave> {
   Future<void> _disposeRecorder() async {
     if (_recording) {
       try {
-        await _recorder.stop();
+        final savedPath = await _recorder.stop();
+        if (savedPath != null) {
+          _temporaryPath = savedPath;
+          debugPrint('Talking recording saved to $savedPath');
+        }
       } catch (_) {}
     }
-    await _deleteTemporaryFile();
     await _recorder.dispose();
   }
 
@@ -55,7 +62,7 @@ class _TalkingVoiceWaveState extends State<TalkingVoiceWave> {
     final manager = PlaybackManager.instance;
     final shouldRecord =
         manager.playerMode == PlayerMode.talking &&
-        manager.isTalkingPause &&
+        manager.isTalkingRecording &&
         manager.hasMedia;
     if (_speakingTurn != shouldRecord) {
       _speakingTurn = shouldRecord;
@@ -77,11 +84,11 @@ class _TalkingVoiceWaveState extends State<TalkingVoiceWave> {
       final temp = await getTemporaryDirectory();
       _temporaryPath = p.join(
         temp.path,
-        'camellia_talking_${DateTime.now().millisecondsSinceEpoch}.m4a',
+        'camellia_talking_${DateTime.now().millisecondsSinceEpoch}.wav',
       );
       await _recorder.start(
         RecordConfig(
-          encoder: AudioEncoder.aacLc,
+          encoder: AudioEncoder.wav,
           sampleRate: 44100,
           bitRate: 128000,
           device: device,
@@ -133,27 +140,21 @@ class _TalkingVoiceWaveState extends State<TalkingVoiceWave> {
     _amplitudeTimer?.cancel();
     _amplitudeTimer = null;
     try {
-      await _recorder.stop();
+      final savedPath = await _recorder.stop();
+      if (savedPath != null) {
+        _temporaryPath = savedPath;
+        debugPrint('Talking recording saved to $savedPath');
+      }
     } catch (_) {}
     _recording = false;
     _samples = List<double>.filled(32, 0.03);
-    await _deleteTemporaryFile();
     _transitioning = false;
     if (mounted) setState(() {});
   }
 
-  Future<void> _deleteTemporaryFile() async {
-    final path = _temporaryPath;
-    _temporaryPath = null;
-    if (path == null) return;
-    try {
-      final file = File(path);
-      if (await file.exists()) await file.delete();
-    } catch (_) {}
-  }
-
   @override
   Widget build(BuildContext context) {
+    if (!_speakingTurn) return const SizedBox.shrink();
     final color = _speakingTurn
         ? Theme.of(context).colorScheme.primary
         : Colors.white54;
@@ -163,9 +164,7 @@ class _TalkingVoiceWaveState extends State<TalkingVoiceWave> {
           : SystemMouseCursors.basic,
       child: GestureDetector(
         behavior: HitTestBehavior.opaque,
-        onTap: _speakingTurn
-            ? PlaybackManager.instance.finishTalkingPause
-            : null,
+        onTap: PlaybackManager.instance.stopTalkingRecording,
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 180),
           width: 340,
