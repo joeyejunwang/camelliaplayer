@@ -12,6 +12,7 @@ void main() {
       iseApiKey: 'api-key',
       iseApiSecret: 'api-secret',
       themeMode: 'light',
+      ratingEnabled: true,
     );
 
     final restored = MediaLibrary.fromJson(library.toJson());
@@ -22,6 +23,7 @@ void main() {
     expect(restored.iseApiKey, 'api-key');
     expect(restored.iseApiSecret, 'api-secret');
     expect(restored.themeMode, 'light');
+    expect(restored.ratingEnabled, isTrue);
   });
 
   test('copyWith keeps recorder settings during library changes', () {
@@ -30,6 +32,7 @@ void main() {
       iseAppId: 'app-id',
       iseApiKey: 'api-key',
       iseApiSecret: 'api-secret',
+      ratingEnabled: true,
     );
 
     final changed = library.copyWith(filePaths: ['lesson.mp4']);
@@ -40,6 +43,7 @@ void main() {
     expect(changed.iseApiKey, 'api-key');
     expect(changed.iseApiSecret, 'api-secret');
     expect(changed.themeMode, 'dark');
+    expect(changed.ratingEnabled, isTrue);
   });
 
   test('unknown or missing theme values default to dark', () {
@@ -48,5 +52,9 @@ void main() {
       MediaLibrary.fromJson(const {'theme_mode': 'system'}).themeMode,
       'dark',
     );
+  });
+
+  test('rating defaults to disabled for existing config files', () {
+    expect(MediaLibrary.fromJson(const {}).ratingEnabled, isFalse);
   });
 }

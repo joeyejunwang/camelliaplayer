@@ -5,6 +5,7 @@ import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 import 'package:record/record.dart';
 
+import 'ise_rating_service.dart';
 import 'media_library_store.dart';
 import 'playback_manager.dart';
 
@@ -50,8 +51,7 @@ class _TalkingVoiceWaveState extends State<TalkingVoiceWave> {
       try {
         final savedPath = await _recorder.stop();
         if (savedPath != null) {
-          _temporaryPath = savedPath;
-          debugPrint('Talking recording saved to $savedPath');
+          _handleSavedRecording(savedPath);
         }
       } catch (_) {}
     }
@@ -77,6 +77,7 @@ class _TalkingVoiceWaveState extends State<TalkingVoiceWave> {
 
   Future<void> _startRecording() async {
     _transitioning = true;
+    IseRatingService.clearRating();
     try {
       if (!await _recorder.hasPermission()) return;
       final settings = await MediaLibraryStore.read();
@@ -89,8 +90,9 @@ class _TalkingVoiceWaveState extends State<TalkingVoiceWave> {
       await _recorder.start(
         RecordConfig(
           encoder: AudioEncoder.wav,
-          sampleRate: 44100,
-          bitRate: 128000,
+          sampleRate: 16000,
+          numChannels: 1,
+          bitRate: 256000,
           device: device,
         ),
         path: _temporaryPath!,
@@ -142,8 +144,7 @@ class _TalkingVoiceWaveState extends State<TalkingVoiceWave> {
     try {
       final savedPath = await _recorder.stop();
       if (savedPath != null) {
-        _temporaryPath = savedPath;
-        debugPrint('Talking recording saved to $savedPath');
+        _handleSavedRecording(savedPath);
       }
     } catch (_) {}
     _recording = false;
@@ -152,12 +153,25 @@ class _TalkingVoiceWaveState extends State<TalkingVoiceWave> {
     if (mounted) setState(() {});
   }
 
+  void _handleSavedRecording(String savedPath) {
+    _temporaryPath = savedPath;
+    debugPrint('Talking recording saved to $savedPath');
+    final reference = PlaybackManager.instance.talkingReferenceText;
+    if (reference == null || reference.trim().isEmpty) return;
+    unawaited(
+      IseRatingService.rateAndSave(wavPath: savedPath, reference: reference),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     if (!_speakingTurn) return const SizedBox.shrink();
-    final color = _speakingTurn
-        ? Theme.of(context).colorScheme.primary
-        : Colors.white54;
+    final theme = Theme.of(context);
+    final dark = theme.brightness == Brightness.dark;
+    final color = _speakingTurn ? theme.colorScheme.primary : Colors.white54;
+    final background = dark
+        ? Colors.black.withValues(alpha: _speakingTurn ? 0.72 : 0.48)
+        : theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.96);
     return MouseRegion(
       cursor: _speakingTurn
           ? SystemMouseCursors.click
@@ -171,7 +185,7 @@ class _TalkingVoiceWaveState extends State<TalkingVoiceWave> {
           height: 58,
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
           decoration: BoxDecoration(
-            color: Colors.black.withValues(alpha: _speakingTurn ? 0.72 : 0.48),
+            color: background,
             borderRadius: BorderRadius.circular(16),
             boxShadow: _speakingTurn
                 ? [

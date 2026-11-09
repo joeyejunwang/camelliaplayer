@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:record/record.dart';
 
+import 'ise_rating_service.dart';
 import 'media_library_store.dart';
 import 'playback_manager.dart';
 
@@ -699,12 +700,18 @@ class MiniPlayerBar extends StatelessWidget {
       child: SizedBox(
         height: height,
         child: ListenableBuilder(
-          listenable: pm,
+          listenable: Listenable.merge([pm, IseRatingService.ratingState]),
           builder: (context, _) {
             final hasMedia = pm.hasMedia;
             final isPlaying = pm.isPlaying;
             final progress = pm.progress;
             final vol = pm.volume;
+            final canRerecord =
+                pm.playerMode == PlayerMode.talking &&
+                pm.isTalkingReview &&
+                pm.showSubtitleTrack &&
+                IseRatingService.ratingState.value.status ==
+                    IseRatingStatus.success;
             return Container(
               decoration: BoxDecoration(
                 color: theme.colorScheme.surfaceContainerHigh,
@@ -917,6 +924,17 @@ class MiniPlayerBar extends StatelessWidget {
                             ? onShowMarkedLyrics
                             : null,
                         tooltip: 'Show marked lyrics',
+                      ),
+                      const SizedBox(width: 4),
+                      _MiniBtn(
+                        icon: Icons.mic_rounded,
+                        onPressed: canRerecord
+                            ? pm.rerecordTalkingSubtitle
+                            : null,
+                        tooltip: canRerecord
+                            ? 'Re-record this subtitle (G)'
+                            : 'Re-record is available after a Talking rating',
+                        isActive: canRerecord,
                       ),
 
                       const Spacer(),

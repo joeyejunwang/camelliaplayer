@@ -455,6 +455,7 @@ class _LibraryHomeScreenState extends State<LibraryHomeScreen> {
               required appId,
               required apiKey,
               required apiSecret,
+              required ratingEnabled,
             }) async {
               await _save(
                 _library.copyWith(
@@ -463,6 +464,7 @@ class _LibraryHomeScreenState extends State<LibraryHomeScreen> {
                   iseAppId: appId,
                   iseApiKey: apiKey,
                   iseApiSecret: apiSecret,
+                  ratingEnabled: ratingEnabled,
                 ),
               );
             },
@@ -639,6 +641,7 @@ class _LibrarySettingsDialog extends StatefulWidget {
     required String appId,
     required String apiKey,
     required String apiSecret,
+    required bool ratingEnabled,
   })
   onSaveRecorder;
 
@@ -652,6 +655,7 @@ class _LibrarySettingsDialogState extends State<_LibrarySettingsDialog> {
   late String _themeMode;
   late _LibrarySort _sort;
   late String _deviceId;
+  late bool _ratingEnabled;
   late final TextEditingController _appIdController;
   late final TextEditingController _apiKeyController;
   late final TextEditingController _apiSecretController;
@@ -667,6 +671,7 @@ class _LibrarySettingsDialogState extends State<_LibrarySettingsDialog> {
     _themeMode = widget.initialThemeMode;
     _sort = widget.initialSort;
     _deviceId = widget.initialConfig.recordingDeviceId;
+    _ratingEnabled = widget.initialConfig.ratingEnabled;
     _appIdController = TextEditingController(
       text: widget.initialConfig.iseAppId,
     );
@@ -711,6 +716,7 @@ class _LibrarySettingsDialogState extends State<_LibrarySettingsDialog> {
       appId: _appIdController.text.trim(),
       apiKey: _apiKeyController.text.trim(),
       apiSecret: _apiSecretController.text.trim(),
+      ratingEnabled: _ratingEnabled,
     );
     if (!mounted) return;
     setState(() => _saving = false);
@@ -844,14 +850,17 @@ class _LibrarySettingsDialogState extends State<_LibrarySettingsDialog> {
                   onChanged: (value) => setState(() => _deviceId = value ?? ''),
                 ),
                 const SizedBox(height: 24),
+                SwitchListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: const Text('Rating'),
+                  subtitle: const Text('Enable rating features'),
+                  value: _ratingEnabled,
+                  onChanged: (value) => setState(() => _ratingEnabled = value),
+                ),
+                const SizedBox(height: 24),
                 Text(
                   'ISE credentials',
                   style: Theme.of(context).textTheme.titleSmall,
-                ),
-                const SizedBox(height: 5),
-                Text(
-                  'Values use ISE_APP_ID, ISE_API_KEY, and ISE_API_SECRET when the saved fields are empty.',
-                  style: Theme.of(context).textTheme.bodySmall,
                 ),
                 const SizedBox(height: 12),
                 TextFormField(

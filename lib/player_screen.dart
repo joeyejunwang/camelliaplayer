@@ -9,6 +9,7 @@ import 'package:path/path.dart' as p;
 
 import 'app_colors.dart';
 import 'custom_title_bar.dart';
+import 'ise_rating_service.dart';
 import 'last_played.dart';
 import 'marked_lyrics.dart';
 import 'mini_player.dart';
@@ -772,12 +773,6 @@ class _PlayerScreenState extends State<PlayerScreen> {
         ? const Color(0xAA000000)
         : theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.94);
     final subtitleTextColor = dark ? Colors.white : theme.colorScheme.onSurface;
-    final reviewSubtitleColors = dark
-        ? const [Color(0xFFFF5252), Color(0xFF69F0AE), Color(0xFFFFD740)]
-        : const [Color(0xFFC62828), Color(0xFF2E7D32), Color(0xFFF9A825)];
-    final reviewSubtitleColor =
-        reviewSubtitleColors[pm.talkingReviewColorIndex];
-
     void noop() {}
 
     return CallbackShortcuts(
@@ -818,6 +813,15 @@ class _PlayerScreenState extends State<PlayerScreen> {
         const SingleActivator(LogicalKeyboardKey.keyS): hasMedia
             ? _toggleSubtitleTrack
             : noop,
+        const SingleActivator(LogicalKeyboardKey.keyG): () {
+          final rating = IseRatingService.ratingState.value;
+          if (pm.playerMode == PlayerMode.talking &&
+              pm.isTalkingReview &&
+              pm.showSubtitleTrack &&
+              rating.status == IseRatingStatus.success) {
+            pm.rerecordTalkingSubtitle();
+          }
+        },
       },
       child: Focus(
         autofocus: true,
@@ -922,20 +926,24 @@ class _PlayerScreenState extends State<PlayerScreen> {
                                     color: subtitleBackground,
                                     borderRadius: BorderRadius.circular(8),
                                   ),
-                                  child: Text(
-                                    _subtitles[displaySubtitleIndex].text,
-                                    textAlign: TextAlign.center,
-                                    maxLines: 3,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: TextStyle(
-                                      color: pm.isTalkingReview
-                                          ? reviewSubtitleColor
-                                          : subtitleTextColor,
-                                      fontSize: 22,
-                                      fontWeight: FontWeight.w500,
-                                      height: 1.3,
-                                    ),
-                                  ),
+                                  child: pm.isTalkingReview
+                                      ? _IseRatingSubtitle(
+                                          text: _subtitles[displaySubtitleIndex]
+                                              .text,
+                                          fallbackColor: subtitleTextColor,
+                                        )
+                                      : Text(
+                                          _subtitles[displaySubtitleIndex].text,
+                                          textAlign: TextAlign.center,
+                                          maxLines: 3,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: TextStyle(
+                                            color: subtitleTextColor,
+                                            fontSize: 22,
+                                            fontWeight: FontWeight.w500,
+                                            height: 1.3,
+                                          ),
+                                        ),
                                 ),
                               ),
                             ),
@@ -1047,6 +1055,165 @@ class _PlayerScreenState extends State<PlayerScreen> {
         ),
       ),
     );
+  }
+}
+
+class _IseRatingSubtitle extends StatelessWidget {
+  const _IseRatingSubtitle({required this.text, required this.fallbackColor});
+
+  final String text;
+  final Color fallbackColor;
+
+  @override
+  Widget build(BuildContext context) {
+    return ValueListenableBuilder<IseRatingState>(
+      valueListenable: IseRatingService.ratingState,
+      builder: (context, rating, _) {
+        if (rating.status == IseRatingStatus.loading) {
+          return Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const SizedBox(
+                width: 13,
+                height: 13,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              ),
+              const SizedBox(width: 8),
+              Text(
+                'Loading rating…',
+                style: TextStyle(color: fallbackColor, fontSize: 14),
+              ),
+            ],
+          );
+        }
+        if (rating.status == IseRatingStatus.success) {
+          return _buildResult(context, rating);
+        }
+        if (rating.status == IseRatingStatus.failure) {
+          final errorColor = Theme.of(context).colorScheme.error;
+          return Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.error_outline_rounded, color: errorColor, size: 15),
+              const SizedBox(width: 8),
+              Text(
+                'Rating failed — check the connection or result',
+                style: TextStyle(
+                  color: errorColor,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ],
+          );
+        }
+        return _plainSubtitle();
+      },
+    );
+  }
+
+  Widget _buildResult(BuildContext context, IseRatingState rating) {
+    final ratedWords = rating.words
+        .where(
+          (word) => _normalizeWord(word['word']?.toString() ?? '').isNotEmpty,
+        )
+        .toList(growable: false);
+    final spans = <InlineSpan>[];
+    var ratedIndex = 0;
+    for (final match in RegExp(r'\s+|\S+').allMatches(text)) {
+      final token = match.group(0)!;
+      if (token.trim().isEmpty) {
+        spans.add(TextSpan(text: token));
+        continue;
+      }
+      final normalized = _normalizeWord(token);
+      Map<String, dynamic>? rated;
+      for (var index = ratedIndex; index < ratedWords.length; index++) {
+        if (_normalizeWord(ratedWords[index]['word']?.toString() ?? '') ==
+            normalized) {
+          rated = ratedWords[index];
+          ratedIndex = index + 1;
+          break;
+        }
+      }
+      spans.add(
+        TextSpan(
+          text: token,
+          style: TextStyle(color: _wordColor(rated, fallbackColor)),
+        ),
+      );
+    }
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text.rich(
+          TextSpan(
+            style: const TextStyle(
+              fontSize: 22,
+              fontWeight: FontWeight.w500,
+              height: 1.3,
+            ),
+            children: spans,
+          ),
+          textAlign: TextAlign.center,
+          maxLines: 3,
+          overflow: TextOverflow.ellipsis,
+        ),
+        const SizedBox(height: 3),
+        Text(
+          'Total ${_score(rating.summary['total_score'])}  •  '
+          'Accuracy ${_score(rating.summary['accuracy_score'])}  •  '
+          'Fluency ${_score(rating.summary['fluency_score'])}  •  '
+          'Integrity ${_score(rating.summary['integrity_score'])}',
+          textAlign: TextAlign.center,
+          style: TextStyle(
+            color: fallbackColor.withValues(alpha: 0.78),
+            fontSize: 10,
+            fontWeight: FontWeight.w400,
+            height: 1.2,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _plainSubtitle() => Text(
+    text,
+    textAlign: TextAlign.center,
+    maxLines: 3,
+    overflow: TextOverflow.ellipsis,
+    style: TextStyle(
+      color: fallbackColor,
+      fontSize: 22,
+      fontWeight: FontWeight.w500,
+      height: 1.3,
+    ),
+  );
+
+  static String _normalizeWord(String value) =>
+      value.toLowerCase().replaceAll(RegExp(r"[^a-z0-9']"), '');
+
+  static Color _wordColor(Map<String, dynamic>? word, Color fallback) {
+    if (word == null) return fallback;
+    final issue = int.tryParse(word['dp_message']?.toString() ?? '');
+    final value = (word['score'] as num?)?.toDouble();
+    const red = Color(0xFFFF1744);
+    const yellow = Color(0xFFFFD600);
+    const green = Color(0xFF00E676);
+    if ((issue != null && issue != 0) || value == null) return red;
+    final score = value.clamp(0.0, 100.0);
+    if (score <= 60) return red;
+    if (score <= 80) {
+      return Color.lerp(red, yellow, (score - 60) / 20)!;
+    }
+    return Color.lerp(yellow, green, (score - 80) / 20)!;
+  }
+
+  static String _score(Object? value) {
+    final number = value is num ? value.toDouble() : null;
+    return number == null ? '—' : number.toStringAsFixed(2);
   }
 }
 

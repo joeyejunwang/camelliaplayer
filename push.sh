@@ -6,9 +6,9 @@
 # git push -f origin main
 
 git add -A
-git commit -m "1.0.20"
+git commit -m "1.0.21"
 git push -f origin main
-git tag v1.0.20
-git push origin v1.0.20
+git tag v1.0.21
+git push origin v1.0.21
 
 

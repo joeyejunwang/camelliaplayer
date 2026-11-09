@@ -115,7 +115,7 @@ class PlaybackManager extends ChangeNotifier {
   bool _isTalkingPause = false;
   bool _talkingRecordingStopped = false;
   Timer? _talkingRecordingLimitTimer;
-  int _talkingReviewColorIndex = 0;
+  int _talkingReviewColorSeed = 0;
   int? _talkingPreviousIndex;
   int? _talkingNextIndex;
   VoidCallback? onPlayPreviousLyric;
@@ -156,7 +156,13 @@ class PlaybackManager extends ChangeNotifier {
   bool get isTalkingPause => _isTalkingPause;
   bool get isTalkingRecording => _isTalkingPause && !_talkingRecordingStopped;
   bool get isTalkingReview => _isTalkingPause && _talkingRecordingStopped;
-  int get talkingReviewColorIndex => _talkingReviewColorIndex;
+  int get talkingReviewColorSeed => _talkingReviewColorSeed;
+  String? get talkingReferenceText {
+    final index = _talkingPreviousIndex;
+    if (index == null || index < 0 || index >= _subtitles.length) return null;
+    return _subtitles[index].text;
+  }
+
   static const talkingRecordingLimit = Duration(minutes: 4);
 
   /// Lyric that the UI should display. Unlike the decoder's raw subtitle
@@ -812,7 +818,7 @@ class PlaybackManager extends ChangeNotifier {
     _talkingRecordingLimitTimer?.cancel();
     _talkingRecordingLimitTimer = null;
     _talkingRecordingStopped = true;
-    _talkingReviewColorIndex = Random().nextInt(3);
+    _talkingReviewColorSeed = Random().nextInt(1 << 31);
     onTalkingPauseChanged?.call();
     notifyListeners();
 
@@ -838,6 +844,26 @@ class PlaybackManager extends ChangeNotifier {
     } catch (_) {
       if (revision == _seekRevision) _automaticSeekTarget = null;
     }
+  }
+
+  /// Starts another microphone turn for the subtitle currently being reviewed.
+  /// The previous rating remains on disk and is replaced in the UI when the
+  /// newly recorded WAV receives its result.
+  void rerecordTalkingSubtitle() {
+    if (_playerMode != PlayerMode.talking ||
+        !_isTalkingPause ||
+        !_talkingRecordingStopped) {
+      return;
+    }
+    _talkingRecordingStopped = false;
+    _talkingRecordingLimitTimer?.cancel();
+    _talkingRecordingLimitTimer = Timer(
+      talkingRecordingLimit,
+      stopTalkingRecording,
+    );
+    unawaited(player.pause());
+    onTalkingPauseChanged?.call();
+    notifyListeners();
   }
 
   /// Completes the learner's manual speaking turn and continues playback.

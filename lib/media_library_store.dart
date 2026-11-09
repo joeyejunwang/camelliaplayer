@@ -14,6 +14,7 @@ class MediaLibrary {
     this.iseApiKey = '',
     this.iseApiSecret = '',
     this.themeMode = 'dark',
+    this.ratingEnabled = false,
   });
 
   final List<String> folderPaths;
@@ -24,6 +25,7 @@ class MediaLibrary {
   final String iseApiKey;
   final String iseApiSecret;
   final String themeMode;
+  final bool ratingEnabled;
 
   Map<String, dynamic> toJson() => {
     'folders': folderPaths,
@@ -36,6 +38,7 @@ class MediaLibrary {
     'ise_api_key': iseApiKey,
     'ise_api_secret': iseApiSecret,
     'theme_mode': themeMode,
+    'rating_enabled': ratingEnabled,
   };
 
   factory MediaLibrary.fromJson(Map<String, dynamic> json) {
@@ -49,6 +52,7 @@ class MediaLibrary {
       iseApiKey: _setting(json, 'ise_api_key', 'ISE_API_KEY'),
       iseApiSecret: _setting(json, 'ise_api_secret', 'ISE_API_SECRET'),
       themeMode: _themeMode(json['theme_mode']),
+      ratingEnabled: json['rating_enabled'] == true,
     );
   }
 
@@ -61,6 +65,7 @@ class MediaLibrary {
     String? iseApiKey,
     String? iseApiSecret,
     String? themeMode,
+    bool? ratingEnabled,
   }) => MediaLibrary(
     folderPaths: folderPaths ?? this.folderPaths,
     filePaths: filePaths ?? this.filePaths,
@@ -70,6 +75,7 @@ class MediaLibrary {
     iseApiKey: iseApiKey ?? this.iseApiKey,
     iseApiSecret: iseApiSecret ?? this.iseApiSecret,
     themeMode: themeMode ?? this.themeMode,
+    ratingEnabled: ratingEnabled ?? this.ratingEnabled,
   );
 
   static List<String> _stringList(Object? value) {
