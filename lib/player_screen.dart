@@ -879,9 +879,12 @@ class _PlayerScreenState extends State<PlayerScreen> {
                                               16,
                                               0,
                                               16,
-                                              pm.playerMode ==
-                                                          PlayerMode.talking &&
-                                                      pm.showSubtitleTrack
+                                              pm.isTalkingReview
+                                                  ? 16
+                                                  : pm.playerMode ==
+                                                            PlayerMode
+                                                                .talking &&
+                                                        pm.showSubtitleTrack
                                                   ? 112
                                                   : 24,
                                             ),
@@ -903,7 +906,9 @@ class _PlayerScreenState extends State<PlayerScreen> {
                             AnimatedPositioned(
                               duration: const Duration(milliseconds: 180),
                               curve: Curves.easeOut,
-                              bottom: pm.playerMode == PlayerMode.talking
+                              bottom: pm.isTalkingReview
+                                  ? 16
+                                  : pm.playerMode == PlayerMode.talking
                                   ? 112
                                   : 12,
                               left: 16,

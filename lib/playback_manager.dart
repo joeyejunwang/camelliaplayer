@@ -113,6 +113,7 @@ class PlaybackManager extends ChangeNotifier {
   int _seekRevision = 0;
   bool _isTalkingPause = false;
   bool _talkingRecordingStopped = false;
+  Timer? _talkingRecordingLimitTimer;
   int? _talkingPreviousIndex;
   int? _talkingNextIndex;
   VoidCallback? onPlayPreviousLyric;
@@ -152,6 +153,8 @@ class PlaybackManager extends ChangeNotifier {
   List<int> get testingLyricIndices => _testingLyricIndices;
   bool get isTalkingPause => _isTalkingPause;
   bool get isTalkingRecording => _isTalkingPause && !_talkingRecordingStopped;
+  bool get isTalkingReview => _isTalkingPause && _talkingRecordingStopped;
+  static const talkingRecordingLimit = Duration(minutes: 4);
 
   int get currentLyricIndex {
     if (_subtitles.isEmpty) return -1;
@@ -778,6 +781,11 @@ class PlaybackManager extends ChangeNotifier {
     _talkingNextIndex = nextIndex;
     _talkingRecordingStopped = false;
     _isTalkingPause = true;
+    _talkingRecordingLimitTimer?.cancel();
+    _talkingRecordingLimitTimer = Timer(
+      talkingRecordingLimit,
+      stopTalkingRecording,
+    );
     unawaited(player.pause());
     onTalkingPauseChanged?.call();
     notifyListeners();
@@ -788,6 +796,8 @@ class PlaybackManager extends ChangeNotifier {
   /// Play action completes the pause and advances to the next lyric.
   void stopTalkingRecording() {
     if (!isTalkingRecording) return;
+    _talkingRecordingLimitTimer?.cancel();
+    _talkingRecordingLimitTimer = null;
     _talkingRecordingStopped = true;
     onTalkingPauseChanged?.call();
     notifyListeners();
@@ -847,6 +857,8 @@ class PlaybackManager extends ChangeNotifier {
 
   void _cancelTalkingPause() {
     final changed = _isTalkingPause;
+    _talkingRecordingLimitTimer?.cancel();
+    _talkingRecordingLimitTimer = null;
     _isTalkingPause = false;
     _talkingRecordingStopped = false;
     _talkingPreviousIndex = null;

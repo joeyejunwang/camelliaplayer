@@ -8,6 +8,10 @@ void main() {
     expect(PlayerMode.values[1], PlayerMode.talking);
   });
 
+  test('Talking recording is limited to four minutes', () {
+    expect(PlaybackManager.talkingRecordingLimit, const Duration(minutes: 4));
+  });
+
   test('Talking mode can show and hide the side lyrics', () {
     final manager = PlaybackManager.instance;
     manager.setPlayerMode(PlayerMode.talking);
